@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
   Alert, ActivityIndicator, Image, Linking, Modal, TextInput,
-  Dimensions, Platform,
+  Dimensions,
 } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -684,6 +684,7 @@ const styles = StyleSheet.create({
   actionBtn: {
     flex: 1, backgroundColor: 'white', borderRadius: 12, paddingVertical: 12,
     alignItems: 'center', gap: 4, elevation: 1, flexDirection: 'row', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 2,
   },
   actionBtnText: { fontSize: 13, fontWeight: '600', color: Colors.text },
   expiryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: 4 },

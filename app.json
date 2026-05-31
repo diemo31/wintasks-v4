@@ -7,7 +7,14 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "bundleIdentifier": "com.diemo31.WinTasks",
+      "supportsTablet": true,
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": ["whatsapp"],
+        "NSCameraUsageDescription": "Usado para escanear códigos QR",
+        "NSPhotoLibraryUsageDescription": "Usado para guardar códigos QR",
+        "NSFaceIDUsageDescription": "Usado para autenticación biométrica"
+      }
     },
     "android": {
       "adaptiveIcon": {
