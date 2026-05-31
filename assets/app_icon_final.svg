@@ -1,0 +1,30 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Fondo App Icon (Squircle Terracota) -->
+  <rect x="0" y="0" width="512" height="512" rx="110" fill="#E05A47"/>
+  
+  <rect x="0" y="0" width="512" height="512" rx="110" fill="url(#subtleGrad)" opacity="0.3"/>
+
+  <defs>
+    <linearGradient id="subtleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0.1"/>
+    </linearGradient>
+
+    <filter id="iconShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#000000" flood-opacity="0.15"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#iconShadow)">
+    <rect x="116" y="140" width="280" height="250" rx="32" fill="#FFFFFF" />
+    
+    <rect x="146" y="100" width="24" height="70" rx="12" fill="#FFFFFF" />
+    <rect x="211" y="100" width="24" height="70" rx="12" fill="#FFFFFF" />
+    <rect x="276" y="100" width="24" height="70" rx="12" fill="#FFFFFF" />
+    <rect x="341" y="100" width="24" height="70" rx="12" fill="#FFFFFF" />
+  </g>
+  
+  <rect x="140" y="200" width="232" height="166" rx="12" fill="#E05A47"/>
+  
+  <path d="M 180 290 L 230 340 L 310 240" fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" filter="url(#iconShadow)"/>
+</svg>

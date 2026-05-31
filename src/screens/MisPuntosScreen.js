@@ -1,0 +1,298 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, TextInput } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors } from '../theme';
+import { useGlobal } from '../context/GlobalContext';
+
+const TYPE_META = {
+  earn_task: { icon: 'checkmark-circle', color: '#16a34a', label: 'Tarea aprobada' },
+  earn_sorpresa: { icon: 'sparkles', color: '#16a34a', label: 'Sorpresa consumida' },
+  earn_membership: { icon: 'card', color: '#16a34a', label: 'Membresía pagada' },
+  earn_invite: { icon: 'gift', color: '#16a34a', label: 'Invitación' },
+  redeem_membership: { icon: 'card-outline', color: '#dc2626', label: 'Canje membresía' },
+  redeem_tokens: { icon: 'logo-usd', color: '#dc2626', label: 'Canje tokens' },
+};
+
+export default function MisPuntosScreen({ navigation, route }) {
+  const { currentUser, getUserLoyaltyPoints, getLoyaltyHistory, redeemPointsForMembership, redeemPointsForTokens, LOYALTY_RATES, REDEEM_MEMBERSHIP_POINTS, REDEEM_TOKEN_POINTS } = useGlobal();
+  const [tab, setTab] = useState('historial');
+  const [tokenPoints, setTokenPoints] = useState('');
+  const [redeeming, setRedeeming] = useState(false);
+
+  const puntos = getUserLoyaltyPoints(currentUser?.id);
+  const history = getLoyaltyHistory(currentUser?.id);
+
+  useEffect(() => {
+    if (!route.params?.fromDrawer) return;
+    const unsub = navigation.addListener('beforeRemove', (e) => {
+      if (e.data.action.type === 'GO_BACK' || e.data.action.type === 'POP') {
+        e.preventDefault();
+        navigation.navigate('DashboardAdulto', { openDrawer: true });
+      }
+    });
+    return unsub;
+  }, [navigation, route.params?.fromDrawer]);
+
+  const handleRedeemMembership = () => {
+    if (puntos < REDEEM_MEMBERSHIP_POINTS) {
+      Alert.alert('Puntos insuficientes', `Necesitás ${REDEEM_MEMBERSHIP_POINTS} puntos WinTasks. Tenés ${puntos}.`);
+      return;
+    }
+    Alert.alert(
+      'Canjear 1 mes de membresía',
+      `Vas a usar ${REDEEM_MEMBERSHIP_POINTS} puntos WinTasks para obtener 1 mes de membresía.\n\n¿Estás seguro?`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Canjear', onPress: () => {
+          const result = redeemPointsForMembership(currentUser.id);
+          if (result.success) {
+            Alert.alert('¡Canje exitoso!', 'Tu membresía de 1 mes fue activada.');
+          } else {
+            Alert.alert('Error', result.error);
+          }
+        }},
+      ]
+    );
+  };
+
+  const handleRedeemTokens = () => {
+    const pts = parseInt(tokenPoints, 10);
+    if (!pts || pts < REDEEM_TOKEN_POINTS) {
+      Alert.alert('Monto inválido', `Ingresá al menos ${REDEEM_TOKEN_POINTS} puntos.`);
+      return;
+    }
+    setRedeeming(true);
+    const result = redeemPointsForTokens(currentUser.id, pts);
+    setRedeeming(false);
+    if (result.success) {
+      Alert.alert('¡Canje exitoso!', `Recibiste ${result.tokens} token${result.tokens > 1 ? 's' : ''}.`);
+      setTokenPoints('');
+    } else {
+      Alert.alert('Error', result.error);
+    }
+  };
+
+  const { icon: ti, color: tc } = TYPE_META.earn_task;
+
+  return (
+    <LinearGradient colors={['#FFFFFF', '#FFD699', '#C06000']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={styles.container}>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+
+        <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Ionicons name="chevron-back" size={24} color={Colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Mis puntos WinTasks</Text>
+          <View style={{ width: 32 }} />
+        </View>
+
+        <LinearGradient colors={['#E05A47', '#C06000']} style={styles.balanceCard}>
+          <Text style={styles.balanceLabel}>Tus puntos WinTasks</Text>
+          <Text style={styles.balanceValue}>{puntos}</Text>
+        </LinearGradient>
+
+        <View style={styles.tabRow}>
+          <TouchableOpacity style={[styles.tab, tab === 'historial' && styles.tabActive]} onPress={() => setTab('historial')}>
+            <Text style={[styles.tabText, tab === 'historial' && styles.tabTextActive]}>Historial</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.tab, tab === 'canjear' && styles.tabActive]} onPress={() => setTab('canjear')}>
+            <Text style={[styles.tabText, tab === 'canjear' && styles.tabTextActive]}>Canjear</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.tab, tab === 'ganar' && styles.tabActive]} onPress={() => setTab('ganar')}>
+            <Text style={[styles.tabText, tab === 'ganar' && styles.tabTextActive]}>Ganar</Text>
+          </TouchableOpacity>
+        </View>
+
+        {tab === 'historial' && (
+          <View style={styles.card}>
+            {history.length === 0 ? (
+              <Text style={styles.emptyText}>Todavía no tenés movimientos de puntos WinTasks.</Text>
+            ) : history.map(h => {
+              const meta = TYPE_META[h.type] || { icon: 'ellipse', color: '#64748b', label: h.type };
+              return (
+                <View key={h.id} style={styles.historyRow}>
+                  <View style={[styles.historyIcon, { backgroundColor: meta.color + '20' }]}>
+                    <Ionicons name={meta.icon} size={16} color={meta.color} />
+                  </View>
+                  <View style={styles.historyInfo}>
+                    <Text style={styles.historyLabel}>{meta.label}</Text>
+                    <Text style={styles.historyDesc}>{h.description}</Text>
+                    <Text style={styles.historyDate}>{new Date(h.date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</Text>
+                  </View>
+                  <Text style={[styles.historyAmount, { color: h.amount > 0 ? '#16a34a' : '#dc2626' }]}>
+                    {h.amount > 0 ? '+' : ''}{h.amount}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {tab === 'canjear' && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Canjear por membresía</Text>
+            <View style={styles.redeemRow}>
+              <View style={styles.redeemInfo}>
+                <Text style={styles.redeemLabel}>1 mes de membresía</Text>
+                <Text style={styles.redeemCost}>{REDEEM_MEMBERSHIP_POINTS} puntos</Text>
+              </View>
+              <TouchableOpacity style={[styles.redeemBtn, puntos < REDEEM_MEMBERSHIP_POINTS && styles.redeemBtnDisabled]} onPress={handleRedeemMembership} disabled={puntos < REDEEM_MEMBERSHIP_POINTS}>
+                <Text style={styles.redeemBtnText}>Canjear</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.divider} />
+
+            <Text style={styles.cardTitle}>Canjear por tokens</Text>
+            <Text style={styles.redeemHint}>{REDEEM_TOKEN_POINTS} puntos = 1 token</Text>
+            <View style={styles.tokenInputRow}>
+              <TextInput
+                style={styles.tokenInput}
+                placeholder="Puntos a canjear"
+                placeholderTextColor="#94a3b8"
+                keyboardType="number-pad"
+                value={tokenPoints}
+                onChangeText={setTokenPoints}
+              />
+              <TouchableOpacity
+                style={[styles.redeemBtn, (!tokenPoints || redeeming) && styles.redeemBtnDisabled]}
+                onPress={handleRedeemTokens}
+                disabled={!tokenPoints || redeeming}
+              >
+                <Text style={styles.redeemBtnText}>Canjear</Text>
+              </TouchableOpacity>
+            </View>
+            {tokenPoints ? (
+              <Text style={styles.tokenPreview}>Recibís ~{Math.floor(parseInt(tokenPoints, 10) / REDEEM_TOKEN_POINTS) || 0} tokens</Text>
+            ) : null}
+          </View>
+        )}
+
+        {tab === 'ganar' && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Cómo ganar puntos WinTasks</Text>
+            <View style={styles.rateRow}>
+              <Ionicons name="checkmark-circle" size={20} color="#16a34a" />
+              <View style={styles.rateInfo}>
+                <Text style={styles.rateLabel}>Aprobar tarea completada</Text>
+                <Text style={styles.rateDesc}>Cuando aprobás una tarea que tu hijo completó</Text>
+              </View>
+              <Text style={styles.ratePts}>+{LOYALTY_RATES.taskApprove}</Text>
+            </View>
+            <View style={styles.rateRow}>
+              <Ionicons name="sparkles" size={20} color="#16a34a" />
+              <View style={styles.rateInfo}>
+                <Text style={styles.rateLabel}>Sorpresa consumida</Text>
+                <Text style={styles.rateDesc}>Cuando tu hijo consume una sorpresa que creaste</Text>
+              </View>
+              <Text style={styles.ratePts}>+{LOYALTY_RATES.sorpresa}</Text>
+            </View>
+            <View style={styles.rateRow}>
+              <Ionicons name="gift" size={20} color="#16a34a" />
+              <View style={styles.rateInfo}>
+                <Text style={styles.rateLabel}>Invitación</Text>
+                <Text style={styles.rateDesc}>Cuando un amigo se registra con tu código</Text>
+              </View>
+              <Text style={styles.ratePts}>+{LOYALTY_RATES.invite}</Text>
+            </View>
+            <View style={styles.rateRow}>
+              <Ionicons name="card" size={20} color="#16a34a" />
+              <View style={styles.rateInfo}>
+                <Text style={styles.rateLabel}>Membresía pagada</Text>
+                <Text style={styles.rateDesc}>1 mes: +{LOYALTY_RATES.membership1m} | 3 meses: +{LOYALTY_RATES.membership3m} | 6 meses: +{LOYALTY_RATES.membership6m}</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+      </ScrollView>
+    </LinearGradient>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  scroll: { padding: 20, paddingTop: 16, paddingBottom: 40 },
+  headerRow: {
+    flexDirection: 'row', alignItems: 'center',
+    marginBottom: 16,
+  },
+  backBtn: { padding: 4, marginRight: 8 },
+  headerTitle: { flex: 1, fontSize: 18, fontWeight: '800', color: Colors.text, textAlign: 'center' },
+
+  balanceCard: {
+    borderRadius: 16, padding: 24, alignItems: 'center', marginBottom: 20,
+    elevation: 6, shadowColor: '#C06000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 8,
+  },
+  balanceLabel: { fontSize: 13, color: 'rgba(255,255,255,0.8)', fontWeight: '600', marginBottom: 4 },
+  balanceValue: { fontSize: 42, fontWeight: '900', color: '#FFFFFF' },
+
+  tabRow: {
+    flexDirection: 'row', backgroundColor: Colors.white, borderRadius: 12,
+    padding: 4, marginBottom: 16, elevation: 2,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 4,
+  },
+  tab: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center' },
+  tabActive: { backgroundColor: Colors.primary },
+  tabText: { fontSize: 13, fontWeight: '600', color: '#64748b' },
+  tabTextActive: { color: '#FFFFFF' },
+
+  card: {
+    backgroundColor: Colors.white, borderRadius: 20, padding: 20,
+    elevation: 4, shadowColor: '#1e293b', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1, shadowRadius: 10,
+  },
+  cardTitle: {
+    fontSize: 15, fontWeight: '800', color: '#1e293b', marginBottom: 12,
+  },
+  emptyText: { fontSize: 13, color: '#94a3b8', textAlign: 'center', paddingVertical: 20 },
+
+  historyRow: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 10,
+    borderBottomWidth: 1, borderBottomColor: '#f1f5f9',
+  },
+  historyIcon: {
+    width: 34, height: 34, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center', marginRight: 12,
+  },
+  historyInfo: { flex: 1 },
+  historyLabel: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
+  historyDesc: { fontSize: 11, color: '#64748b', marginTop: 1 },
+  historyDate: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
+  historyAmount: { fontSize: 16, fontWeight: '800', marginLeft: 8 },
+
+  redeemRow: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  redeemInfo: {},
+  redeemLabel: { fontSize: 14, fontWeight: '600', color: '#1e293b' },
+  redeemCost: { fontSize: 12, color: '#64748b', marginTop: 2 },
+  redeemBtn: {
+    backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  redeemBtnDisabled: { opacity: 0.4 },
+  redeemBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  redeemHint: { fontSize: 12, color: '#64748b', marginBottom: 12 },
+
+  divider: { height: 1, backgroundColor: '#e2e8f0', marginVertical: 16 },
+
+  tokenInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  tokenInput: {
+    flex: 1, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, color: Colors.text,
+  },
+  tokenPreview: { fontSize: 12, color: '#64748b', marginTop: 6 },
+
+  rateRow: {
+    flexDirection: 'row', alignItems: 'center', paddingVertical: 12,
+    borderBottomWidth: 1, borderBottomColor: '#f1f5f9', gap: 12,
+  },
+  rateInfo: { flex: 1 },
+  rateLabel: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
+  rateDesc: { fontSize: 11, color: '#64748b', marginTop: 1 },
+  ratePts: { fontSize: 16, fontWeight: '800', color: '#16a34a' },
+});
