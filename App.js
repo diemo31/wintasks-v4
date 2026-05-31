@@ -1,4 +1,5 @@
 import React from 'react';
+import { Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
@@ -32,6 +33,7 @@ function AppNavigator() {
         headerTintColor: '#FEFCF8',
         headerTitleStyle: { fontWeight: '600' },
         contentStyle: { backgroundColor: '#EDE0D4' },
+        ...(Platform.OS === 'ios' ? { headerTransparent: false } : {}),
       }}
     >
       {!currentUser ? (

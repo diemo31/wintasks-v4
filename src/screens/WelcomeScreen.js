@@ -1,5 +1,6 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Dimensions, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, StatusBar, Dimensions, Animated, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Polygon } from 'react-native-svg';
 import { SvgXml } from 'react-native-svg';
 import { useFocusEffect } from '@react-navigation/native';
@@ -65,6 +66,7 @@ function buildBotPts(bh) {
 }
 
 export default function WelcomeScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
   const [topPts, setTopPts] = useState(() => buildTopPts(0));
   const [botPts, setBotPts] = useState(() => buildBotPts(0));
   const bandOpen = useRef(new Animated.Value(0)).current;
@@ -119,7 +121,7 @@ export default function WelcomeScreen({ navigation }) {
         <SvgXml xml={LOGO_SVG} width={320} height={64} />
       </Animated.View>
 
-      <Animated.View style={[styles.buttons, { opacity: btnsOpacity }]}>
+      <Animated.View style={[styles.buttons, { opacity: btnsOpacity }, Platform.OS === 'ios' && { bottom: 50 + insets.bottom }]}>
         <TouchableOpacity
           style={styles.primaryButton}
           activeOpacity={0.85}

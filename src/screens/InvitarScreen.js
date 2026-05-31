@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert,
-  Linking, Share,
+  Linking, Share, Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as Clipboard from 'expo-clipboard';
@@ -10,6 +11,7 @@ import { Colors } from '../theme';
 import { useGlobal } from '../context/GlobalContext';
 
 export default function InvitarScreen({ navigation, route }) {
+  const insets = useSafeAreaInsets();
   const { currentUser, getReferralCode, getInvites, getUserLoyaltyPoints } = useGlobal();
   const [copied, setCopied] = useState(false);
 
@@ -49,7 +51,7 @@ export default function InvitarScreen({ navigation, route }) {
 
   return (
     <LinearGradient colors={['#FFFFFF', '#FFD699', '#C06000']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scroll, Platform.OS === 'ios' && { paddingTop: 16 + insets.top }]} showsVerticalScrollIndicator={false}>
 
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>

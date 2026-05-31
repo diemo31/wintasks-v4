@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions, Animated, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions, Animated, Pressable, Platform } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { SvgXml } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -149,6 +149,7 @@ function SecondaryCarousel({ data }) {
 }
 
 export default function DashboardAdultoScreen({ navigation, route }) {
+  const insets = useSafeAreaInsets();
   const { currentUser, getUserTokens, getUserLoyaltyPoints, logout } = useGlobal();
   const myTokens = getUserTokens(currentUser?.id);
   const myLoyaltyPoints = getUserLoyaltyPoints(currentUser?.id);
@@ -169,7 +170,7 @@ export default function DashboardAdultoScreen({ navigation, route }) {
 
   return (
     <View style={{ flex: 1 }}>
-      <LinearGradient colors={['#E88900', '#C06000']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={styles.customHeader}>
+      <LinearGradient colors={['#E88900', '#C06000']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={[styles.customHeader, { paddingTop: Platform.OS === 'ios' ? 44 + insets.top : 44 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, paddingTop: 4 }}>
           <TouchableOpacity onPress={() => toggleDrawer(true)}>
             <Ionicons name="menu" size={28} color="#FEFCF8" />

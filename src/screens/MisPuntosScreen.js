@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, TextInput, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme';
@@ -15,6 +16,7 @@ const TYPE_META = {
 };
 
 export default function MisPuntosScreen({ navigation, route }) {
+  const insets = useSafeAreaInsets();
   const { currentUser, getUserLoyaltyPoints, getLoyaltyHistory, redeemPointsForMembership, redeemPointsForTokens, LOYALTY_RATES, REDEEM_MEMBERSHIP_POINTS, REDEEM_TOKEN_POINTS } = useGlobal();
   const [tab, setTab] = useState('historial');
   const [tokenPoints, setTokenPoints] = useState('');
@@ -77,7 +79,7 @@ export default function MisPuntosScreen({ navigation, route }) {
 
   return (
     <LinearGradient colors={['#FFFFFF', '#FFD699', '#C06000']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.scroll, Platform.OS === 'ios' && { paddingTop: 16 + insets.top }]} showsVerticalScrollIndicator={false}>
 
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
