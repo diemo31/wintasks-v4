@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, TextInput, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,10 +17,8 @@ const TYPE_META = {
 
 export default function MisPuntosScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
-  const { currentUser, getUserLoyaltyPoints, getLoyaltyHistory, redeemPointsForMembership, redeemPointsForTokens, LOYALTY_RATES, REDEEM_MEMBERSHIP_POINTS, REDEEM_TOKEN_POINTS } = useGlobal();
+  const { currentUser, getUserLoyaltyPoints, getLoyaltyHistory, redeemPointsForMembership, redeemTokensTiered, LOYALTY_RATES, REDEEM_MEMBERSHIP_POINTS, TOKEN_REDEEM_OPTIONS } = useGlobal();
   const [tab, setTab] = useState('historial');
-  const [tokenPoints, setTokenPoints] = useState('');
-  const [redeeming, setRedeeming] = useState(false);
 
   const puntos = getUserLoyaltyPoints(currentUser?.id);
   const history = getLoyaltyHistory(currentUser?.id);
@@ -56,23 +54,6 @@ export default function MisPuntosScreen({ navigation, route }) {
         }},
       ]
     );
-  };
-
-  const handleRedeemTokens = () => {
-    const pts = parseInt(tokenPoints, 10);
-    if (!pts || pts < REDEEM_TOKEN_POINTS) {
-      Alert.alert('Monto inválido', `Ingresá al menos ${REDEEM_TOKEN_POINTS} puntos.`);
-      return;
-    }
-    setRedeeming(true);
-    const result = redeemPointsForTokens(currentUser.id, pts);
-    setRedeeming(false);
-    if (result.success) {
-      Alert.alert('¡Canje exitoso!', `Recibiste ${result.tokens} token${result.tokens > 1 ? 's' : ''}.`);
-      setTokenPoints('');
-    } else {
-      Alert.alert('Error', result.error);
-    }
   };
 
   const { icon: ti, color: tc } = TYPE_META.earn_task;
@@ -133,41 +114,76 @@ export default function MisPuntosScreen({ navigation, route }) {
 
         {tab === 'canjear' && (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Canjear por membresía</Text>
-            <View style={styles.redeemRow}>
-              <View style={styles.redeemInfo}>
-                <Text style={styles.redeemLabel}>1 mes de membresía</Text>
-                <Text style={styles.redeemCost}>{REDEEM_MEMBERSHIP_POINTS} puntos</Text>
-              </View>
-              <TouchableOpacity style={[styles.redeemBtn, puntos < REDEEM_MEMBERSHIP_POINTS && styles.redeemBtnDisabled]} onPress={handleRedeemMembership} disabled={puntos < REDEEM_MEMBERSHIP_POINTS}>
-                <Text style={styles.redeemBtnText}>Canjear</Text>
-              </TouchableOpacity>
-            </View>
+            <Text style={styles.cardTitle}>Canjeá tus puntos</Text>
+            <Text style={styles.redeemHint}>Elegí lo que querés canjear</Text>
 
-            <View style={styles.divider} />
-
-            <Text style={styles.cardTitle}>Canjear por tokens</Text>
-            <Text style={styles.redeemHint}>{REDEEM_TOKEN_POINTS} puntos = 1 token</Text>
-            <View style={styles.tokenInputRow}>
-              <TextInput
-                style={styles.tokenInput}
-                placeholder="Puntos a canjear"
-                placeholderTextColor="#94a3b8"
-                keyboardType="number-pad"
-                value={tokenPoints}
-                onChangeText={setTokenPoints}
-              />
+            <View style={styles.redeemOffersRow}>
               <TouchableOpacity
-                style={[styles.redeemBtn, (!tokenPoints || redeeming) && styles.redeemBtnDisabled]}
-                onPress={handleRedeemTokens}
-                disabled={!tokenPoints || redeeming}
+                style={[styles.redeemOffer, puntos < REDEEM_MEMBERSHIP_POINTS && styles.redeemOfferDisabled]}
+                onPress={() => {
+                  if (puntos < REDEEM_MEMBERSHIP_POINTS) {
+                    Alert.alert('Puntos insuficientes', `Todavía no tenés los puntos suficientes.`, [
+                      { text: 'Entendido', style: 'cancel' },
+                      { text: 'Comprar', onPress: () => navigation.navigate('Membresia') },
+                    ]);
+                    return;
+                  }
+                  Alert.alert('Canje', '1 mes de membresía por 2.500 puntos', [
+                    { text: 'Entendido', style: 'cancel' },
+                    { text: 'Canjear', onPress: handleRedeemMembership },
+                  ]);
+                }}
               >
-                <Text style={styles.redeemBtnText}>Canjear</Text>
+                <LinearGradient colors={['#E88900', '#C06000']} style={styles.redeemOfferIcon}>
+                  <Ionicons name="card" size={24} color="#FFF" />
+                </LinearGradient>
+                <Text style={styles.redeemOfferTitle}>Membresía</Text>
+                <Text style={styles.redeemOfferValue}>1 mes</Text>
+                <View style={styles.redeemOfferCostRow}>
+                  <Text style={[styles.redeemOfferCost, puntos < REDEEM_MEMBERSHIP_POINTS && styles.redeemOfferCostMissing]}>
+                    {puntos >= REDEEM_MEMBERSHIP_POINTS ? '2.500 pts' : `Faltan ${REDEEM_MEMBERSHIP_POINTS - puntos}`}
+                  </Text>
+                </View>
               </TouchableOpacity>
+
+              {TOKEN_REDEEM_OPTIONS.map((opt, i) => {
+                const enough = puntos >= opt.points;
+                return (
+                  <TouchableOpacity
+                    key={i}
+                    style={[styles.redeemOffer, !enough && styles.redeemOfferDisabled]}
+                    onPress={() => {
+                      if (!enough) {
+                        Alert.alert('Puntos insuficientes', `Todavía no tenés los puntos suficientes.`, [
+                          { text: 'Entendido', style: 'cancel' },
+                          { text: 'Comprar', onPress: () => navigation.navigate('Tokens') },
+                        ]);
+                        return;
+                      }
+                      Alert.alert('Canje', `${opt.tokens.toLocaleString()} tokens por ${opt.points.toLocaleString()} puntos`, [
+                        { text: 'Entendido', style: 'cancel' },
+                        { text: 'Canjear', onPress: () => {
+                          const result = redeemTokensTiered(currentUser.id, i);
+                          if (result.success) Alert.alert('¡Listo!', `Recibiste ${result.tokens} tokens.`);
+                          else Alert.alert('Error', result.error);
+                        }},
+                      ]);
+                    }}
+                  >
+                    <LinearGradient colors={['#E88900', '#C06000']} style={styles.redeemOfferIcon}>
+                      <Ionicons name="logo-usd" size={24} color="#FFF" />
+                    </LinearGradient>
+                    <Text style={styles.redeemOfferTitle}>Tokens</Text>
+                    <Text style={styles.redeemOfferValue}>{opt.tokens.toLocaleString()}</Text>
+                    <View style={styles.redeemOfferCostRow}>
+                      <Text style={[styles.redeemOfferCost, !enough && styles.redeemOfferCostMissing]}>
+                        {enough ? `${opt.points.toLocaleString()} pts` : `Faltan ${opt.points - puntos}`}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-            {tokenPoints ? (
-              <Text style={styles.tokenPreview}>Recibís ~{Math.floor(parseInt(tokenPoints, 10) / REDEEM_TOKEN_POINTS) || 0} tokens</Text>
-            ) : null}
           </View>
         )}
 
@@ -249,7 +265,24 @@ const styles = StyleSheet.create({
   cardTitle: {
     fontSize: 15, fontWeight: '800', color: '#1e293b', marginBottom: 12,
   },
+  redeemHint: { fontSize: 13, color: '#64748b', marginBottom: 16 },
   emptyText: { fontSize: 13, color: '#94a3b8', textAlign: 'center', paddingVertical: 20 },
+
+  redeemOffersRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 10,
+  },
+  redeemOffer: {
+    width: '48%', backgroundColor: '#f8f9fa', borderRadius: 14, padding: 14,
+    alignItems: 'center', elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1, shadowRadius: 4,
+  },
+  redeemOfferDisabled: { opacity: 0.55 },
+  redeemOfferIcon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  redeemOfferTitle: { fontSize: 12, fontWeight: '600', color: '#888' },
+  redeemOfferValue: { fontSize: 18, fontWeight: '800', color: '#1e293b', marginVertical: 2 },
+  redeemOfferCostRow: { marginTop: 4 },
+  redeemOfferCost: { fontSize: 12, fontWeight: '700', color: '#E88900' },
+  redeemOfferCostMissing: { color: '#dc2626' },
 
   historyRow: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 10,
@@ -265,29 +298,7 @@ const styles = StyleSheet.create({
   historyDate: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
   historyAmount: { fontSize: 16, fontWeight: '800', marginLeft: 8 },
 
-  redeemRow: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    marginBottom: 8,
-  },
-  redeemInfo: {},
-  redeemLabel: { fontSize: 14, fontWeight: '600', color: '#1e293b' },
-  redeemCost: { fontSize: 12, color: '#64748b', marginTop: 2 },
-  redeemBtn: {
-    backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: 20,
-    paddingVertical: 10,
-  },
-  redeemBtnDisabled: { opacity: 0.4 },
-  redeemBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
-  redeemHint: { fontSize: 12, color: '#64748b', marginBottom: 12 },
-
   divider: { height: 1, backgroundColor: '#e2e8f0', marginVertical: 16 },
-
-  tokenInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  tokenInput: {
-    flex: 1, borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 10, fontSize: 15, color: Colors.text,
-  },
-  tokenPreview: { fontSize: 12, color: '#64748b', marginTop: 6 },
 
   rateRow: {
     flexDirection: 'row', alignItems: 'center', paddingVertical: 12,

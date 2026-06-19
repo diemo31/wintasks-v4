@@ -1,5 +1,5 @@
 import React from 'react';
-import { Platform } from 'react-native';
+import { View, Text, ActivityIndicator, Platform } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
@@ -17,12 +17,30 @@ import CambiarClaveScreen from './src/screens/CambiarClaveScreen';
 import MembresiaScreen from './src/screens/MembresiaScreen';
 import InvitarScreen from './src/screens/InvitarScreen';
 import MisPuntosScreen from './src/screens/MisPuntosScreen';
+import MejorPrecioScreen from './src/screens/MejorPrecioScreen';
+import OpcionesScreen from './src/screens/OpcionesScreen';
+import CreateSurpriseScreen from './src/screens/CreateSurpriseScreen';
+import SorpresaRevealScreen from './src/screens/SorpresaRevealScreen';
+import PremiosScreen from './src/screens/PremiosScreen';
+import CreatePrizeScreen from './src/screens/CreatePrizeScreen';
+import TokensScreen from './src/screens/TokensScreen';
+import MiCuentaTokensScreen from './src/screens/MiCuentaTokensScreen';
+import HijosScreen from './src/screens/HijosScreen';
 import { Colors } from './src/theme';
 
 const Stack = createNativeStackNavigator();
 
 function AppNavigator() {
-  const { currentUser } = useGlobal();
+  const { loaded, currentUser } = useGlobal();
+
+  if (!loaded) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FFF' }}>
+        <ActivityIndicator size="large" color="#FF8C00" />
+        <Text style={{ marginTop: 12, color: '#888', fontSize: 14 }}>Cargando...</Text>
+      </View>
+    );
+  }
 
   return (
     <Stack.Navigator
@@ -53,11 +71,21 @@ function AppNavigator() {
           <Stack.Screen name="Membresia" component={MembresiaScreen} options={{ title: 'Membresía' }} />
           <Stack.Screen name="Invitar" component={InvitarScreen} options={{ headerShown: false }} />
           <Stack.Screen name="MisPuntos" component={MisPuntosScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="MejorPrecio" component={MejorPrecioScreen} options={{ title: 'Mejor precio' }} />
+          <Stack.Screen name="Opciones" component={OpcionesScreen} options={{ title: 'Más opciones' }} />
+          <Stack.Screen name="CreateSurprise" component={CreateSurpriseScreen} options={{ title: 'Crear sorpresa' }} />
+          <Stack.Screen name="SorpresaReveal" component={SorpresaRevealScreen} options={{ headerShown: false, animation: 'fade' }} />
+          <Stack.Screen name="Premios" component={PremiosScreen} options={{ title: 'Premios' }} />
+          <Stack.Screen name="CreatePrize" component={CreatePrizeScreen} options={{ title: 'Crear premio' }} />
+          <Stack.Screen name="Tokens" component={TokensScreen} options={{ title: 'Comprar tokens' }} />
+          <Stack.Screen name="MiCuentaTokens" component={MiCuentaTokensScreen} options={{ title: 'Mi cuenta de tokens' }} />
+          <Stack.Screen name="Hijos" component={HijosScreen} options={{ title: 'Mis hijos' }} />
         </Stack.Group>
       ) : (
         <Stack.Group>
           <Stack.Screen name="DashboardMenor" component={DashboardMenorScreen} options={{ title: 'WinTasks', headerBackVisible: false }} />
           <Stack.Screen name="TareasMenor" component={TareasEnCursoScreen} options={{ title: 'Mis tareas' }} />
+          <Stack.Screen name="SorpresaReveal" component={SorpresaRevealScreen} options={{ headerShown: false, animation: 'fade' }} />
         </Stack.Group>
       )}
     </Stack.Navigator>

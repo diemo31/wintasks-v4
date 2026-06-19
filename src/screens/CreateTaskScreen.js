@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native';
 import { Colors } from '../theme';
 import { useGlobal } from '../context/GlobalContext';
 import PearlBackground from '../components/PearlBackground';
 
 export default function CreateTaskScreen({ navigation }) {
-  const { currentUser, getChildren, createTask } = useGlobal();
+  const { currentUser, getChildren, getUserTokens, createTask } = useGlobal();
   const children = getChildren(currentUser.id);
+  const myTokens = getUserTokens(currentUser?.id);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [childId, setChildId] = useState('');
@@ -14,7 +15,16 @@ export default function CreateTaskScreen({ navigation }) {
 
   const handleCreate = () => {
     if (!title.trim() || !childId || !tokenReward) return;
-    createTask({ title: title.trim(), description: description.trim(), childId, tokenReward: Number(tokenReward), createdBy: currentUser.id });
+    const cost = Number(tokenReward);
+    if (cost > myTokens) {
+      Alert.alert('Tokens insuficientes', `Tenés ${myTokens} tokens disponibles, pero la tarea requiere ${cost}.`);
+      return;
+    }
+    const task = createTask({ title: title.trim(), description: description.trim(), childId, tokenReward: cost, createdBy: currentUser.id });
+    if (!task) {
+      Alert.alert('Error', 'No se pudo crear la tarea. Verificá tu saldo de tokens.');
+      return;
+    }
     navigation.goBack();
   };
 

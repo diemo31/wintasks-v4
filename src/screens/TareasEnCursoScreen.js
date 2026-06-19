@@ -10,6 +10,7 @@ const STATUS_MAP = {
   completed: { label: 'Completada', color: '#4A90D9' },
   approved: { label: 'Aprobada', color: '#5B9E4A' },
   rejected: { label: 'Rechazada', color: '#C0392B' },
+  expired: { label: 'Vencida', color: '#888' },
 };
 
 export default function TareasEnCursoScreen({ navigation }) {

@@ -192,6 +192,7 @@ export default function DashboardAdultoScreen({ navigation, route }) {
             <View style={styles.logoContainer}>
               <SvgXml xml={LOGO_SVG} width={300} height={60} />
             </View>
+            <TouchableOpacity onPress={() => navigation.navigate('MiCuentaTokens')}>
             <LinearGradient colors={['#E88900', '#C06000']} style={styles.walletCard}>
               <Text style={styles.walletLabel}>Tu cuenta de tokens</Text>
               <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
@@ -199,6 +200,7 @@ export default function DashboardAdultoScreen({ navigation, route }) {
                 <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.5)" />
               </View>
             </LinearGradient>
+            </TouchableOpacity>
           </LinearGradient>
           <TouchableOpacity onPress={() => navigation.navigate('MisPuntos')} style={styles.fidelityCardOuter}>
             <LinearGradient colors={['#FFFFFF', '#F0EDEA']} style={styles.fidelityCard}>
@@ -219,23 +221,29 @@ export default function DashboardAdultoScreen({ navigation, route }) {
                 </View>
                 <Text style={styles.appText}>Crear tarea</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.appButton}>
+              <TouchableOpacity style={styles.appButton} onPress={() => navigation.navigate('CreateSurprise')}>
                 <View style={styles.appIcon}>
                   <Ionicons name="sparkles" size={32} color="#FFFFFF" />
                 </View>
                 <Text style={styles.appText}>Crear sorpresa</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.appButton}>
+              <TouchableOpacity style={styles.appButton} onPress={() => navigation.navigate('Premios')}>
                 <View style={styles.appIcon}>
                   <Ionicons name="gift" size={32} color="#FFFFFF" />
                 </View>
                 <Text style={styles.appText}>Premios</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.appButton}>
+              <TouchableOpacity style={styles.appButton} onPress={() => navigation.navigate('Tokens')}>
                 <View style={styles.appIcon}>
                   <Ionicons name="cart" size={32} color="#FFFFFF" />
                 </View>
                 <Text style={styles.appText}>Tokens</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.appButton} onPress={() => navigation.navigate('Opciones')}>
+                <View style={[styles.appIcon, { backgroundColor: Colors.textLight }]}>
+                  <Ionicons name="apps-outline" size={32} color="#FFFFFF" />
+                </View>
+                <Text style={styles.appText}>Más opciones</Text>
               </TouchableOpacity>
             </View>
           </LinearGradient>
@@ -252,7 +260,7 @@ export default function DashboardAdultoScreen({ navigation, route }) {
                 <Ionicons name="checkmark-outline" size={18} color="#B85C3A" style={{ marginRight: 6 }} />
                 <Text style={styles.pfmButtonText}>Listas</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.pfmButton}>
+              <TouchableOpacity style={styles.pfmButton} onPress={() => navigation.navigate('Hijos')}>
                 <Ionicons name="people-outline" size={16} color="#B85C3A" style={{ marginRight: 6 }} />
                 <Text style={styles.pfmButtonText}>Hijos</Text>
               </TouchableOpacity>
