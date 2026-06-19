@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "api/paypal/*.js": {
+      "maxDuration": 10
+    }
+  }
+}
