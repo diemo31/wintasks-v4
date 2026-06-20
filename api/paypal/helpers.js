@@ -21,13 +21,14 @@ async function createOrder(usdAmount) {
     body: JSON.stringify({
       intent: 'CAPTURE',
       purchase_units: [{
-        amount: { currency_code: 'USD', value: usdAmount.toFixed(2) },
+        amount: { currency_code: 'USD', value: Number(usdAmount).toFixed(2) },
       }],
     }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Failed to create order');
-  return data;
+  const approvalUrl = data.links?.find(l => l.rel === 'approve')?.href;
+  return { ...data, approvalUrl };
 }
 
 async function captureOrder(orderId) {
