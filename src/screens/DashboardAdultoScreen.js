@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions, Animated, Pressable, Platform } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -150,9 +150,10 @@ function SecondaryCarousel({ data }) {
 
 export default function DashboardAdultoScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
-  const { currentUser, getUserTokens, getUserLoyaltyPoints, logout } = useGlobal();
+  const { currentUser, getUserTokens, getUserLoyaltyPoints, logout, tasks } = useGlobal();
   const myTokens = getUserTokens(currentUser?.id);
   const myLoyaltyPoints = getUserLoyaltyPoints(currentUser?.id);
+  const pendingApprovals = useMemo(() => tasks.filter(t => t.createdBy === currentUser?.id && t.status === 'completed').length, [tasks, currentUser?.id]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const drawerAnim = useRef(new Animated.Value(-width * 0.75)).current;
 
@@ -255,10 +256,15 @@ export default function DashboardAdultoScreen({ navigation, route }) {
               <TouchableOpacity style={styles.pfmButton} onPress={() => navigation.navigate('TareasEnCurso')}>
                 <Ionicons name="time-outline" size={16} color="#B85C3A" style={{ marginRight: 6 }} />
                 <Text style={styles.pfmButtonText}>Tareas</Text>
+                {pendingApprovals > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{pendingApprovals}</Text>
+                  </View>
+                )}
               </TouchableOpacity>
-              <TouchableOpacity style={styles.pfmButton}>
-                <Ionicons name="checkmark-outline" size={18} color="#B85C3A" style={{ marginRight: 6 }} />
-                <Text style={styles.pfmButtonText}>Listas</Text>
+              <TouchableOpacity style={styles.pfmButton} onPress={() => navigation.navigate('ToDo')}>
+                <Ionicons name="checkmark-circle-outline" size={18} color="#B85C3A" style={{ marginRight: 6 }} />
+                <Text style={styles.pfmButtonText}>To do</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.pfmButton} onPress={() => navigation.navigate('Hijos')}>
                 <Ionicons name="people-outline" size={16} color="#B85C3A" style={{ marginRight: 6 }} />
@@ -389,6 +395,8 @@ const styles = StyleSheet.create({
     elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 4,
   },
   pfmButtonText: { color: '#1e293b', fontWeight: '800', fontSize: 13 },
+  badge: { backgroundColor: '#C0392B', borderRadius: 10, minWidth: 18, height: 18, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, marginLeft: 4 },
+  badgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
   secondaryAd: { height: 80, borderRadius: 8, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4 },
   secondaryAdImg: { width: '100%', height: '100%', borderRadius: 8 },
   secondaryAdTitle: { color: 'white', fontSize: 14, fontWeight: '800' },

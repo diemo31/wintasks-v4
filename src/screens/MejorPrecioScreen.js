@@ -39,8 +39,9 @@ export default function MejorPrecioScreen({ navigation }) {
     if (locationRequested.current) return;
     locationRequested.current = true;
     try {
-      const { status } = await Location.getForegroundPermissionsAsync();
-      if (status === 'granted') {
+      setLocationLoading(true);
+      const { status: preStatus } = await Location.getForegroundPermissionsAsync();
+      if (preStatus === 'granted') {
         setLocationDenied(false);
         try {
           const loc = await Promise.race([
@@ -54,14 +55,8 @@ export default function MejorPrecioScreen({ navigation }) {
         setLocationLoading(false);
         return;
       }
-      if (status === 'denied') {
-        setLocationDenied(true);
-        setLocationLoading(false);
-        return;
-      }
-      setLocationLoading(true);
-      const { status: newStatus } = await Location.requestForegroundPermissionsAsync();
-      if (newStatus === 'granted') {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
         setLocationDenied(false);
         const loc = await Location.getCurrentPositionAsync({});
         setLocation({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });

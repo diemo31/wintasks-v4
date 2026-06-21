@@ -1,88 +1,376 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Platform, Animated, Pressable } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { SvgXml } from 'react-native-svg';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '../theme';
 import { useGlobal } from '../context/GlobalContext';
-import PearlBackground from '../components/PearlBackground';
 
-export default function DashboardMenorScreen({ navigation }) {
-  const { currentUser, getUserTokens, getTutorName, logout } = useGlobal();
+const { width } = Dimensions.get('window');
+
+const LOGO_SVG = `<svg width="600" height="120" viewBox="0 0 600 120" xmlns="http://www.w3.org/2000/svg">
+  <g transform="translate(95, 15)">
+    <rect x="0" y="0" width="90" height="90" rx="22" fill="#E05A47"/>
+    <g transform="scale(0.18)">
+        <rect x="116" y="140" width="280" height="250" rx="32" fill="#FFFFFF" />
+        <rect x="146" y="100" width="24" height="70" rx="12" fill="#FFFFFF" />
+        <rect x="211" y="100" width="24" height="70" rx="12" fill="#FFFFFF" />
+        <rect x="276" y="100" width="24" height="70" rx="12" fill="#FFFFFF" />
+        <rect x="341" y="100" width="24" height="70" rx="12" fill="#FFFFFF" />
+        <rect x="140" y="200" width="232" height="166" rx="12" fill="#E05A47"/>
+        <path d="M 180 290 L 230 340 L 310 240" fill="none" stroke="#FFFFFF" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" />
+    </g>
+  </g>
+  <text x="225" y="80" font-family="system-ui, sans-serif" font-size="64" fill="#FFFFFF">
+    <tspan font-weight="800" fill="#E05A47">Win</tspan><tspan font-weight="300" fill="#A89F96">Tasks</tspan>
+  </text>
+</svg>`;
+
+const juegos = [
+  { id: 'j1', title: 'Minecraft: Minecoins', icon: 'diamond', color: '#4CAF50', bg: '#1B5E20' },
+  { id: 'j2', title: 'Roblox: Robux Extra', icon: 'game-controller', color: '#FF5252', bg: '#B71C1C' },
+  { id: 'j3', title: 'Fortnite: V-Bucks', icon: 'flash', color: '#7C4DFF', bg: '#311B92' },
+  { id: 'j4', title: 'Free Fire: Diamantes', icon: 'flame', color: '#FF9800', bg: '#E65100' },
+  { id: 'j5', title: 'Brawl Stars: Gemas', icon: 'star', color: '#FFD700', bg: '#827717' },
+];
+
+const cursos = [
+  { id: 'c1', title: 'Club de Inglés', desc: 'Clases divertidas online con native speakers.', icon: 'language', color: '#60a5fa', bg: '#1E3A5F', duration: 4000 },
+  { id: 'c2', title: 'Robótica para Kids', desc: 'Armá tu primer robot con kits STEM.', icon: 'hardware-chip', color: '#a7f3d0', bg: '#065F46', duration: 4500 },
+  { id: 'c3', title: 'Taller de Dibujo', desc: 'Aprendé a dibujar personajes animados.', icon: 'color-palette', color: '#fbbf24', bg: '#92400E', duration: 3500 },
+  { id: 'c4', title: 'Evento: Torneo Gaming', desc: 'Competí con otros chicos por premios en tokens.', icon: 'trophy', color: '#f97316', bg: '#9A3412', duration: 3000 },
+];
+
+function SecondaryCarousel({ data }) {
+  const currentIndex = useRef(0);
+  const scrollAnim = useRef(new Animated.Value(0)).current;
+  const BANNER_W = width - 40;
+  const ITEM_W = BANNER_W + 4;
+
+  useEffect(() => {
+    let isActive = true;
+    const interval = setInterval(() => {
+      if (!isActive) return;
+      const next = (currentIndex.current + 1) % data.length;
+      currentIndex.current = next;
+      Animated.timing(scrollAnim, { toValue: -(next * ITEM_W), duration: 1200, useNativeDriver: true }).start();
+    }, 5500);
+    return () => { isActive = false; clearInterval(interval); };
+  }, [data]);
 
   return (
-    <PearlBackground>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>¡Hola, {currentUser?.alias}!</Text>
-            <Text style={styles.tutorText}>Tutor: {getTutorName(currentUser?.tutorId)}</Text>
-          </View>
-          <TouchableOpacity onPress={logout}>
-            <Ionicons name="log-out-outline" size={24} color={Colors.textLight} />
+    <View style={{ width: '100%', overflow: 'hidden' }}>
+      <Animated.View style={{ flexDirection: 'row', width: data.length * ITEM_W, transform: [{ translateX: scrollAnim }] }}>
+        {data.map((ad, idx) => (
+          <TouchableOpacity key={ad.id} activeOpacity={0.8} style={[styles.secondaryAd, { width: BANNER_W, marginRight: idx === data.length - 1 ? 0 : 4 }]}>
+            <LinearGradient colors={[ad.bg, ad.bg]} style={[styles.secondaryAdImg, { borderRadius: 8, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16 }]}>
+              <Ionicons name={ad.icon} size={28} color={ad.color} style={{ marginRight: 12 }} />
+              <Text style={styles.secondaryAdTitle}>{ad.title}</Text>
+            </LinearGradient>
           </TouchableOpacity>
-        </View>
+        ))}
+      </Animated.View>
+    </View>
+  );
+}
 
-        <View style={styles.tokenCard}>
-          <Text style={styles.tokenLabel}>Tus tokens</Text>
-          <Text style={styles.tokenAmount}>{getUserTokens(currentUser?.id)}</Text>
-        </View>
+function AdCarousel({ data }) {
+  const [focusIndex, setFocusIndex] = useState(0);
+  const scrollRef = useRef(null);
+  const direction = useRef(1);
+  const isInteracting = useRef(false);
+  const interactionTimeout = useRef(null);
+  const GAP = 4;
+  const CAROUSEL_W = width - 40;
+  const ITEM_WIDTH = Math.floor((CAROUSEL_W - GAP) / 2);
+  const SNAP_INTERVAL = ITEM_WIDTH + GAP;
+  const maxScrollIndex = Math.max(0, data.length - 2);
 
-        <Text style={styles.sectionTitle}>Tareas pendientes</Text>
-        <View style={styles.emptyCard}>
-          <Ionicons name="checkmark-done" size={32} color={Colors.disabled} />
-          <Text style={styles.emptyText}>No tenés tareas pendientes</Text>
-        </View>
+  useEffect(() => {
+    if (isInteracting.current || data.length === 0) return;
+    const currentAd = data[focusIndex];
+    if (!currentAd) return;
+    const timeout = setTimeout(() => {
+      let next = focusIndex + direction.current;
+      let dir = direction.current;
+      if (next >= data.length) { next = data.length - 2; dir = -1; }
+      else if (next < 0) { next = 1; dir = 1; }
+      direction.current = dir;
+      setFocusIndex(next);
+      scrollRef.current?.scrollTo({ x: Math.min(next, maxScrollIndex) * SNAP_INTERVAL, animated: true });
+    }, currentAd.duration || 4000);
+    return () => clearTimeout(timeout);
+  }, [focusIndex, data]);
 
-        <Text style={styles.sectionTitle}>Acciones</Text>
-        <View style={styles.actionsGrid}>
-          <TouchableOpacity style={styles.appButton} onPress={() => navigation.navigate('TareasMenor')}>
-              <View style={styles.appIcon}>
-                <Ionicons name="list" size={32} color={Colors.primary} />
-              </View>
-              <Text style={styles.appText}>Tareas</Text>
+  const handleScroll = (e) => {
+    if (isInteracting.current) {
+      clearTimeout(interactionTimeout.current);
+      interactionTimeout.current = setTimeout(() => {
+        isInteracting.current = false;
+        const newIdx = Math.round(e.nativeEvent.contentOffset.x / SNAP_INTERVAL);
+        direction.current = 1;
+        setFocusIndex(newIdx);
+      }, 400);
+    }
+  };
+
+  return (
+    <View style={{ width: CAROUSEL_W, alignSelf: 'center' }}>
+      <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: '#cbd5e1', paddingVertical: 10, width: CAROUSEL_W }}>
+        <ScrollView
+          ref={scrollRef} horizontal showsHorizontalScrollIndicator={false}
+          snapToInterval={SNAP_INTERVAL} snapToAlignment="start" decelerationRate="fast"
+          onScroll={handleScroll}
+          onScrollBeginDrag={() => { isInteracting.current = true; clearTimeout(interactionTimeout.current); }}
+          scrollEventThrottle={16}
+        >
+          {data.map((ad, idx) => (
+            <TouchableOpacity key={ad.id} style={[styles.adBanner, { width: ITEM_WIDTH, marginRight: idx === data.length - 1 ? 0 : GAP }]}>
+              <LinearGradient colors={[ad.bg, ad.bg]} style={[styles.adImageBg, { borderRadius: 8 }]}>
+                <View style={styles.adOverlay}>
+                  <Ionicons name={ad.icon} size={36} color={ad.color} style={{ position: 'absolute', right: 8, top: 8, opacity: 0.95 }} />
+                  <View style={styles.adContent}>
+                    <Text style={[styles.adTitle, { fontSize: 16 }]} numberOfLines={2}>{ad.title}</Text>
+                    <Text style={[styles.adDesc, { fontSize: 11, lineHeight: 14 }]} numberOfLines={3}>{ad.desc}</Text>
+                  </View>
+                </View>
+              </LinearGradient>
             </TouchableOpacity>
-          <TouchableOpacity style={styles.appButton}>
-            <View style={styles.appIcon}>
-              <Ionicons name="gift" size={32} color={Colors.secondary} />
-            </View>
-            <Text style={styles.appText}>Premios</Text>
+          ))}
+        </ScrollView>
+      </View>
+    </View>
+  );
+}
+
+export default function DashboardMenorScreen({ navigation }) {
+  const insets = useSafeAreaInsets();
+  const { currentUser, getUserTokens, getUserLoyaltyPoints, getTutorName, logout } = useGlobal();
+  const myTokens = getUserTokens(currentUser?.id);
+  const myLoyaltyPoints = getUserLoyaltyPoints(currentUser?.id);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const drawerAnim = useRef(new Animated.Value(-width * 0.75)).current;
+
+  const toggleDrawer = (open) => {
+    setIsDrawerOpen(open);
+    Animated.timing(drawerAnim, { toValue: open ? 0 : -width * 0.75, duration: 300, useNativeDriver: true }).start();
+  };
+
+  return (
+    <View style={{ flex: 1 }}>
+      <LinearGradient colors={['#E88900', '#C06000']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={[styles.customHeader, { paddingTop: Platform.OS === 'ios' ? 44 + insets.top : 44 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingBottom: 12, paddingTop: 4 }}>
+          <TouchableOpacity onPress={() => toggleDrawer(true)}>
+            <Ionicons name="menu" size={28} color="#FEFCF8" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.appButton}>
-            <View style={styles.appIcon}>
-              <Ionicons name="swap-horizontal" size={32} color={Colors.accent} />
-            </View>
-            <Text style={styles.appText}>Transferir</Text>
+          <View style={{ width: 10 }} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>¡Hola, {currentUser?.alias}!</Text>
+            <Text style={styles.headerSub}>Tutor: {getTutorName(currentUser?.tutorId)}</Text>
+          </View>
+          <TouchableOpacity onPress={() => {}} style={{ marginRight: 16 }}>
+            <Ionicons name="notifications-outline" size={24} color="#FEFCF8" />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.appButton}>
-            <View style={styles.appIcon}>
-              <Ionicons name="stats-chart" size={32} color={Colors.text} />
-            </View>
-            <Text style={styles.appText}>Historial</Text>
+          <TouchableOpacity onPress={logout}>
+            <Ionicons name="log-out-outline" size={24} color="#FEFCF8" />
           </TouchableOpacity>
         </View>
-      </View>
-    </PearlBackground>
+      </LinearGradient>
+      <LinearGradient colors={['#FFFFFF', '#F0EDEA']} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <LinearGradient colors={['#FFFFFF', '#FFD699', '#E88900']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={styles.orangeSection}>
+            <View style={styles.logoContainer}>
+              <SvgXml xml={LOGO_SVG} width={260} height={52} />
+            </View>
+            <LinearGradient colors={['#E88900', '#C06000']} style={styles.walletCard}>
+              <Text style={styles.walletLabel}>Tu cuenta de tokens</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
+                <Text style={styles.walletAmount}>{myTokens}</Text>
+              </View>
+            </LinearGradient>
+          </LinearGradient>
+
+          <TouchableOpacity style={styles.fidelityCardOuter}>
+            <LinearGradient colors={['#FFFFFF', '#F0EDEA']} style={styles.fidelityCard}>
+              <Text style={styles.fidelityLabel}>
+                Mis puntos <Text style={styles.fidelityWin}>Win</Text><Text style={styles.fidelityTasks}>Tasks</Text>
+              </Text>
+              <View style={styles.fidelityRight}>
+                <Text style={styles.fidelityValue}>{myLoyaltyPoints}</Text>
+                <Ionicons name="chevron-forward" size={18} color="#ccc" />
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <LinearGradient colors={['#FFFFFF', '#F0EDEA']} style={styles.actionsWrapper}>
+            <View style={styles.actionsGrid}>
+              <TouchableOpacity style={styles.appButton} onPress={() => navigation.navigate('TareasMenor')}>
+                <View style={styles.appIcon}>
+                  <Ionicons name="list" size={32} color="#FFFFFF" />
+                </View>
+                <Text style={styles.appText}>Tareas</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.appButton} onPress={() => navigation.navigate('PremiosMenor')}>
+                <View style={styles.appIcon}>
+                  <Ionicons name="gift" size={32} color="#FFFFFF" />
+                </View>
+                <Text style={styles.appText}>Premios</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.appButton} onPress={() => navigation.navigate('Transferir')}>
+                <View style={styles.appIcon}>
+                  <Ionicons name="swap-horizontal" size={32} color="#FFFFFF" />
+                </View>
+                <Text style={styles.appText}>Transferir</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.appButton}>
+                <View style={styles.appIcon}>
+                  <Ionicons name="stats-chart" size={32} color="#FFFFFF" />
+                </View>
+                <Text style={styles.appText}>Historial</Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+
+          <View style={styles.bottomContent}>
+            <Text style={styles.sectionTitle}>Juegos emocionantes</Text>
+            <SecondaryCarousel data={juegos} />
+            <View style={styles.pfmRow}>
+              <TouchableOpacity style={styles.pfmButton}>
+                <Ionicons name="star-outline" size={16} color="#B85C3A" style={{ marginRight: 6 }} />
+                <Text style={styles.pfmButtonText}>Score</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.pfmButton} onPress={() => navigation.navigate('ToDo')}>
+                <Ionicons name="checkmark-circle-outline" size={18} color="#B85C3A" style={{ marginRight: 6 }} />
+                <Text style={styles.pfmButtonText}>To do</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.pfmButton} onPress={() => navigation.navigate('SorpresaReveal')}>
+                <Ionicons name="sparkles-outline" size={16} color="#B85C3A" style={{ marginRight: 6 }} />
+                <Text style={styles.pfmButtonText}>Sorpresas</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.sectionTitle, { marginTop: 12 }]}>Cursos y eventos</Text>
+            <AdCarousel data={cursos} />
+          </View>
+        </ScrollView>
+      </LinearGradient>
+
+      {isDrawerOpen && <Pressable style={styles.drawerOverlay} onPress={() => toggleDrawer(false)} />}
+      <Animated.View style={[styles.drawer, { transform: [{ translateX: drawerAnim }] }]}>
+        <SafeAreaView style={{ flex: 1 }}>
+          <View style={styles.drawerHeader}>
+            <View style={styles.drawerAvatar}><Text style={styles.drawerAvatarText}>{currentUser?.alias?.charAt(0).toUpperCase() || 'U'}</Text></View>
+            <View>
+              <Text style={styles.drawerUserName}>{currentUser?.alias || 'Usuario'}</Text>
+              <Text style={styles.drawerUserPhone}>{currentUser?.phone || ''}</Text>
+            </View>
+          </View>
+          <ScrollView style={styles.drawerMenu}>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => toggleDrawer(false)}>
+              <Ionicons name="home-outline" size={22} color="#334155" style={styles.drawerItemIcon} />
+              <Text style={styles.drawerItemText}>Inicio</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { toggleDrawer(false); navigation.navigate('TareasMenor'); }}>
+              <Ionicons name="list-outline" size={22} color="#334155" style={styles.drawerItemIcon} />
+              <Text style={styles.drawerItemText}>Mis tareas</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { toggleDrawer(false); navigation.navigate('SorpresaReveal'); }}>
+              <Ionicons name="sparkles-outline" size={22} color="#334155" style={styles.drawerItemIcon} />
+              <Text style={styles.drawerItemText}>Sorpresas</Text>
+            </TouchableOpacity>
+            <View style={styles.drawerDivider} />
+            <TouchableOpacity style={styles.drawerItem} onPress={logout}>
+              <Ionicons name="log-out-outline" size={22} color="#ef4444" style={styles.drawerItemIcon} />
+              <Text style={[styles.drawerItemText, { color: '#ef4444' }]}>Cerrar sesión</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        </SafeAreaView>
+      </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
-  greeting: { fontSize: 22, fontWeight: 'bold', color: Colors.text },
-  tutorText: { fontSize: 14, color: Colors.textLight, marginTop: 2 },
-  tokenCard: {
-    backgroundColor: Colors.primary, padding: 32, borderRadius: 24, alignItems: 'center',
-    marginBottom: 24, shadowColor: Colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 6,
+  customHeader: {
+    paddingTop: 44,
+    elevation: 8,
+    shadowColor: '#C06000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
   },
-  tokenLabel: { fontSize: 16, color: Colors.white, opacity: 0.9 },
-  tokenAmount: { fontSize: 52, fontWeight: 'bold', color: Colors.white, marginTop: 4, letterSpacing: 2 },
-  sectionTitle: { fontSize: 17, fontWeight: '600', color: Colors.text, marginBottom: 12, marginTop: 4 },
-  emptyCard: {
-    backgroundColor: Colors.white, padding: 24, borderRadius: 20, alignItems: 'center',
-    borderWidth: 1, borderColor: Colors.surface, marginBottom: 24, gap: 8,
+  headerTitle: { fontSize: 18, fontWeight: '600', color: '#FEFCF8' },
+  headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.75)', marginTop: 2 },
+  scrollContent: { flexGrow: 1, overflow: 'visible' },
+  orangeSection: {
+    backgroundColor: '#FFA000',
+    paddingTop: 10,
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+    elevation: 6,
+    shadowColor: '#C06000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
-  emptyText: { fontSize: 14, color: Colors.disabled },
-  actionsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 16, justifyContent: 'center' },
-  appButton: { alignItems: 'center', width: '20%', minWidth: 72 },
-  appIcon: { width: 60, height: 60, borderRadius: 18, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.white },
+  logoContainer: { alignItems: 'center', marginBottom: 10 },
+  walletCard: {
+    backgroundColor: '#C06000', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 8,
+    shadowColor: '#8B4513', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.5, shadowRadius: 10,
+    elevation: 8,
+  },
+  walletLabel: { fontSize: 12, color: 'rgba(255,255,255,0.75)', textAlign: 'left' },
+  walletAmount: { fontSize: 28, fontWeight: 'bold', color: '#FEFCF8' },
+  fidelityCardOuter: {
+    marginHorizontal: 20, marginTop: -19,
+    borderRadius: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1, shadowRadius: 6, elevation: 3,
+  },
+  fidelityCard: {
+    paddingVertical: 6, paddingHorizontal: 16,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    borderRadius: 8,
+  },
+  fidelityLabel: { fontSize: 13, color: '#666' },
+  fidelityWin: { fontWeight: '800', color: '#E05A47' },
+  fidelityTasks: { fontWeight: '300', color: '#1F3C6A' },
+  fidelityRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  fidelityValue: { fontSize: 16, fontWeight: 'bold', color: '#E05A47' },
+  bottomContent: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 10 },
+  sectionTitle: { fontSize: 17, fontWeight: '600', color: Colors.text, marginBottom: 8 },
+  pfmRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 10, marginBottom: 4, height: 42 },
+  pfmButton: {
+    flex: 0.31, height: '100%', paddingHorizontal: 12, borderRadius: 8,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#e2e8f0',
+    elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 4,
+  },
+  pfmButtonText: { color: '#1e293b', fontWeight: '800', fontSize: 13 },
+  actionsWrapper: { paddingTop: 12, paddingBottom: 4, paddingHorizontal: 20, marginVertical: 4 },
+  actionsGrid: { flexDirection: 'row', justifyContent: 'space-evenly' },
+  appButton: { alignItems: 'center', flex: 1 },
+  appIcon: { width: 60, height: 60, borderRadius: 18, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FF8C00' },
   appText: { fontSize: 12, color: Colors.text, fontWeight: '500', marginTop: 6, textAlign: 'center' },
+  adBanner: { height: 145, borderRadius: 8, elevation: 4, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 8 },
+  adImageBg: { width: '100%', height: '100%', justifyContent: 'center' },
+  adOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 8, padding: 14, justifyContent: 'center' },
+  adContent: { zIndex: 2, flex: 1, justifyContent: 'center', paddingRight: 0 },
+  adTitle: { fontSize: 16, fontWeight: '900', color: 'white', marginBottom: 6, letterSpacing: -0.5, textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 },
+  adDesc: { fontSize: 13.5, color: 'rgba(255,255,255,0.9)', lineHeight: 18, fontWeight: '600', textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 2 },
+  secondaryAd: { height: 80, borderRadius: 8, elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.2, shadowRadius: 4 },
+  secondaryAdImg: { width: '100%', height: '100%', borderRadius: 8 },
+  secondaryAdTitle: { color: 'white', fontSize: 14, fontWeight: '800' },
+  drawerOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 100 },
+  drawer: { position: 'absolute', left: 0, top: 0, bottom: 0, width: width * 0.75, backgroundColor: 'white', zIndex: 101, elevation: 10, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10 },
+  drawerHeader: { padding: 25, backgroundColor: '#f8fafc', borderBottomWidth: 1, borderBottomColor: '#f1f5f9', flexDirection: 'row', alignItems: 'center', gap: 15 },
+  drawerAvatar: { width: 50, height: 50, borderRadius: 25, backgroundColor: '#E05A47', alignItems: 'center', justifyContent: 'center' },
+  drawerAvatarText: { color: 'white', fontSize: 24, fontWeight: 'bold' },
+  drawerUserName: { fontSize: 18, fontWeight: '800', color: '#1e293b' },
+  drawerUserPhone: { fontSize: 13, color: '#64748b' },
+  drawerMenu: { padding: 15, flex: 1 },
+  drawerItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 15, paddingHorizontal: 10, borderRadius: 12, marginBottom: 5 },
+  drawerItemIcon: { marginRight: 15, width: 22, textAlign: 'center' },
+  drawerItemText: { fontSize: 16, fontWeight: '600', color: '#334155' },
+  drawerDivider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 10 },
 });

@@ -1,0 +1,11 @@
+node_modules
+.expo
+dist
+android
+src
+assets
+.git
+.gitignore
+*.md
+AGENTS.md
+LICENSE

@@ -22,10 +22,14 @@ import OpcionesScreen from './src/screens/OpcionesScreen';
 import CreateSurpriseScreen from './src/screens/CreateSurpriseScreen';
 import SorpresaRevealScreen from './src/screens/SorpresaRevealScreen';
 import PremiosScreen from './src/screens/PremiosScreen';
+import PremiosMenorScreen from './src/screens/PremiosMenorScreen';
 import CreatePrizeScreen from './src/screens/CreatePrizeScreen';
 import TokensScreen from './src/screens/TokensScreen';
 import MiCuentaTokensScreen from './src/screens/MiCuentaTokensScreen';
 import HijosScreen from './src/screens/HijosScreen';
+import ToDoScreen from './src/screens/ToDoScreen';
+import TaskProgressScreen from './src/screens/TaskProgressScreen';
+import TransferirScreen from './src/screens/TransferirScreen';
 import { Colors } from './src/theme';
 
 const Stack = createNativeStackNavigator();
@@ -80,11 +84,16 @@ function AppNavigator() {
           <Stack.Screen name="Tokens" component={TokensScreen} options={{ title: 'Comprar tokens' }} />
           <Stack.Screen name="MiCuentaTokens" component={MiCuentaTokensScreen} options={{ title: 'Mi cuenta de tokens' }} />
           <Stack.Screen name="Hijos" component={HijosScreen} options={{ title: 'Mis hijos' }} />
+          <Stack.Screen name="ToDo" component={ToDoScreen} options={{ title: 'To do' }} />
         </Stack.Group>
       ) : (
         <Stack.Group>
-          <Stack.Screen name="DashboardMenor" component={DashboardMenorScreen} options={{ title: 'WinTasks', headerBackVisible: false }} />
+          <Stack.Screen name="DashboardMenor" component={DashboardMenorScreen} options={{ headerShown: false }} />
           <Stack.Screen name="TareasMenor" component={TareasEnCursoScreen} options={{ title: 'Mis tareas' }} />
+          <Stack.Screen name="TaskProgress" component={TaskProgressScreen} options={{ title: 'Tarea' }} />
+          <Stack.Screen name="ToDo" component={ToDoScreen} options={{ title: 'To do' }} />
+          <Stack.Screen name="PremiosMenor" component={PremiosMenorScreen} options={{ title: 'Premios' }} />
+          <Stack.Screen name="Transferir" component={TransferirScreen} options={{ title: 'Transferir' }} />
           <Stack.Screen name="SorpresaReveal" component={SorpresaRevealScreen} options={{ headerShown: false, animation: 'fade' }} />
         </Stack.Group>
       )}

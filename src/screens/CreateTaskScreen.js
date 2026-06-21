@@ -12,6 +12,7 @@ export default function CreateTaskScreen({ navigation }) {
   const [description, setDescription] = useState('');
   const [childId, setChildId] = useState('');
   const [tokenReward, setTokenReward] = useState('');
+  const [daysToExpire, setDaysToExpire] = useState('7');
 
   const handleCreate = () => {
     if (!title.trim() || !childId || !tokenReward) return;
@@ -20,7 +21,16 @@ export default function CreateTaskScreen({ navigation }) {
       Alert.alert('Tokens insuficientes', `Tenés ${myTokens} tokens disponibles, pero la tarea requiere ${cost}.`);
       return;
     }
-    const task = createTask({ title: title.trim(), description: description.trim(), childId, tokenReward: cost, createdBy: currentUser.id });
+    const days = Math.max(1, Number(daysToExpire) || 7);
+    const expiresAt = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
+    const task = createTask({
+      title: title.trim(),
+      description: description.trim(),
+      childId,
+      tokenReward: cost,
+      createdBy: currentUser.id,
+      expiresAt,
+    });
     if (!task) {
       Alert.alert('Error', 'No se pudo crear la tarea. Verificá tu saldo de tokens.');
       return;
@@ -58,6 +68,9 @@ export default function CreateTaskScreen({ navigation }) {
 
         <Text style={styles.label}>Tokens a ganar</Text>
         <TextInput style={styles.input} placeholder="Ej: 10" value={tokenReward} onChangeText={setTokenReward} keyboardType="number-pad" />
+
+        <Text style={styles.label}>Vence en (días)</Text>
+        <TextInput style={styles.input} placeholder="7" value={daysToExpire} onChangeText={setDaysToExpire} keyboardType="number-pad" />
 
         <TouchableOpacity style={styles.createBtn} onPress={handleCreate}>
           <Text style={styles.createBtnText}>Crear tarea</Text>

@@ -19,12 +19,13 @@ export function getPasswordErrors(password) {
 }
 
 const DEMO_USERS = [
-  { id: '1', nombre: 'Guille', apellido: 'Adulto', email: 'guilleadulto@gmail.com', alias: 'guillepadre', phone: '+541122222222', fechaNac: '10/05/1984', age: 42, role: 'adulto', password: 'Pass1234', trialEnd: null, isPremium: true },
+  { id: '1', nombre: 'Guille', apellido: 'Adulto', email: 'guilleadulto@gmail.com', alias: 'guillepadre', phone: '+541122222222', fechaNac: '10/05/1984', age: 42, role: 'adulto', password: 'Pass1234' },
   { id: '2', nombre: 'Ana', apellido: 'Martínez', email: 'anita@email.com', alias: 'anita123', phone: '+541122221111', fechaNac: '10/07/2014', age: 10, role: 'menor', password: 'Pass1234', tutorId: '1' },
+  { id: '3', nombre: 'Lucas', apellido: 'Adulto', email: 'lucas@email.com', alias: 'lucasadulto', phone: '+541122223333', fechaNac: '15/03/1980', age: 46, role: 'adulto', password: 'Pass1234' },
 ];
 
 const EXPIRY_MONTHS = 6;
-const SIGNUP_TOKEN_BONUS = 500;
+const SIGNUP_TOKEN_BONUS = 200;
 const TASK_COMPLETE_POINTS = 10;
 const TASK_EXPIRY_DAYS = 7;
 
@@ -61,7 +62,15 @@ const INITIAL_TASKS = [
   { id: 't12', title: 'Preparar la mochila', description: '', childId: '2', createdBy: '1', tokenReward: 6, status: 'approved', createdAt: '2026-06-08T08:00:00Z', completedAt: '2026-06-10T14:00:00Z', approvedAt: '2026-06-10T16:00:00Z', expiresAt: '2026-06-15T08:00:00Z' },
   { id: 't13', title: 'Ayudar a poner la mesa', description: '', childId: '2', createdBy: '1', tokenReward: 5, status: 'approved', createdAt: '2026-06-12T11:00:00Z', completedAt: '2026-06-15T12:00:00Z', approvedAt: '2026-06-15T14:00:00Z', expiresAt: '2026-06-19T11:00:00Z' },
 ];
-const INITIAL_MEMBERSHIPS = {};
+const INITIAL_MEMBERSHIPS = {
+  '1': {
+    plan: '6meses', startDate: '2026-06-19T00:00:00.000Z',
+    endDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
+    status: 'active', paymentRef: 'GRATIS-6M', amountUsd: 0, amountArs: 0, rate: 0,
+    createdAt: '2026-06-19T00:00:00.000Z', expiresAt: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
+    userEmail: 'guilleadulto@gmail.com',
+  },
+};
 const INITIAL_INVITES = {};
 const INITIAL_LOYALTY_HISTORY = [
   { id: 'lh1', userId: '1', amount: 10, type: 'earn_task', description: 'Tarea "Ordenar la habitación" completada', date: '2026-05-12T16:00:00Z' },
@@ -94,10 +103,12 @@ export function GlobalProvider({ children }) {
   const [loyaltyHistory, setLoyaltyHistory] = useState(INITIAL_LOYALTY_HISTORY);
   const [surprises, setSurprises] = useState([]);
   const [prizes, setPrizes] = useState([]);
+  const [todoLists, setTodoLists] = useState([]);
+  const [taskPhotos, setTaskPhotos] = useState({});
   const [loaded, setLoaded] = useState(false);
   const saveTimer = useRef(null);
 
-  const STORAGE_KEYS = ['users', 'tokenBatches', 'tasks', 'memberships', 'invites', 'loyaltyPoints', 'loyaltyHistory', 'surprises', 'prizes'];
+  const STORAGE_KEYS = ['users', 'tokenBatches', 'tasks', 'memberships', 'invites', 'loyaltyPoints', 'loyaltyHistory', 'surprises', 'prizes', 'todoLists', 'taskPhotos'];
 
   const stateMap = {
     users: [users, setUsers],
@@ -109,6 +120,8 @@ export function GlobalProvider({ children }) {
     loyaltyHistory: [loyaltyHistory, setLoyaltyHistory],
     surprises: [surprises, setSurprises],
     prizes: [prizes, setPrizes],
+    todoLists: [todoLists, setTodoLists],
+    taskPhotos: [taskPhotos, setTaskPhotos],
   };
 
   const isEmpty = (val) => {
@@ -126,7 +139,7 @@ export function GlobalProvider({ children }) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => saveAll(), 500);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
-  }, [users, tokenBatches, tasks, memberships, invites, loyaltyPoints, loyaltyHistory, surprises, prizes, loaded]);
+  }, [users, tokenBatches, tasks, memberships, invites, loyaltyPoints, loyaltyHistory, surprises, prizes, todoLists, taskPhotos, loaded]);
 
   const saveAll = async () => {
     try {
@@ -134,7 +147,6 @@ export function GlobalProvider({ children }) {
         const val = stateMap[key][0];
         await AsyncStorage.setItem(key, JSON.stringify(val));
       }
-      if (currentUser) await AsyncStorage.setItem('currentUser', JSON.stringify(currentUser));
     } catch (e) { /* silent */ }
   };
 
@@ -145,20 +157,32 @@ export function GlobalProvider({ children }) {
         const raw = await AsyncStorage.getItem(key);
         if (raw) saved[key] = JSON.parse(raw);
       }
-      const cuRaw = await AsyncStorage.getItem('currentUser');
-      if (cuRaw) saved.currentUser = JSON.parse(cuRaw);
       for (const key of STORAGE_KEYS) {
         if (saved[key] && !isEmpty(saved[key])) stateMap[key][1](saved[key]);
       }
-      if (saved.currentUser) setCurrentUser(saved.currentUser);
+      // ensure DEMO_USERS are always present (merge by id)
+      setUsers(prev => {
+        const existingIds = new Set(prev.map(u => u.id));
+        const missing = DEMO_USERS.filter(u => !existingIds.has(u.id));
+        return missing.length > 0 ? [...prev, ...missing] : prev;
+      });
       // ensure INITIAL_TASKS are always present (merge by id, don't overwrite user-created)
       setTasks(prev => {
         const existingIds = new Set(prev.map(t => t.id));
         const missing = INITIAL_TASKS.filter(t => !existingIds.has(t.id));
         return missing.length > 0 ? [...prev, ...missing] : prev;
       });
+      // ensure INITIAL_MEMBERSHIPS keys are present
+      setMemberships(prev => {
+        const merged = { ...prev };
+        for (const key of Object.keys(INITIAL_MEMBERSHIPS)) {
+          if (!merged[key]) merged[key] = INITIAL_MEMBERSHIPS[key];
+        }
+        return merged;
+      });
     } catch (e) { /* silent */ }
     setLoaded(true);
+    expireOverdueTasks();
   };
 
 
@@ -180,12 +204,21 @@ export function GlobalProvider({ children }) {
       fechaNac,
       password,
       role: isAdult ? 'adulto' : 'menor',
-      ...(isAdult ? { trialEnd: null, isPremium: false } : { tutorId: tutorCode || null }),
+      ...(isAdult ? {} : { tutorId: tutorCode || null }),
     };
     setUsers(prev => [...prev, newUser]);
     setCurrentUser(newUser);
     if (newUser.role === 'adulto') {
       addTokenBatchDirect(newUser.id, SIGNUP_TOKEN_BONUS);
+      const endDate = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString();
+      setMemberships(prev => ({
+        ...prev,
+        [newUser.id]: {
+          plan: '6meses', startDate: new Date().toISOString(), endDate,
+          status: 'active', paymentRef: 'GRATIS-6M', amountUsd: 0, amountArs: 0, rate: 0,
+          createdAt: new Date().toISOString(), expiresAt: endDate, userEmail: email || '',
+        },
+      }));
     }
     function addTokenBatchDirect(uid, amt) {
       const batch = {
@@ -244,7 +277,8 @@ export function GlobalProvider({ children }) {
     return users.filter(u => u.role === 'menor' && u.tutorId === adultId);
   }, [users]);
 
-  const addTokens = useCallback((userId, amount, source = 'generic') => {
+  const addTokens = useCallback((userId, amount, source = 'generic', expiryMonths) => {
+    const months = expiryMonths || EXPIRY_MONTHS;
     const batch = {
       id: String(Date.now()) + String(Math.random()).slice(2, 8),
       userId,
@@ -252,7 +286,7 @@ export function GlobalProvider({ children }) {
       remaining: amount,
       source,
       acquiredAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: new Date(Date.now() + months * 30 * 24 * 60 * 60 * 1000).toISOString(),
     };
     setTokenBatches(prev => [...prev, batch]);
     return batch;
@@ -284,7 +318,22 @@ export function GlobalProvider({ children }) {
     return success;
   }, [deductTokens, addTokens]);
 
-  const createTask = useCallback(({ title, description, childId, tokenReward, createdBy }) => {
+  const moveLoyaltyPoints = useCallback((fromUserId, toUserId, amount) => {
+    const current = loyaltyPoints[fromUserId] || 0;
+    if (current < amount) return false;
+    setLoyaltyPoints(prev => ({
+      ...prev,
+      [fromUserId]: (prev[fromUserId] || 0) - amount,
+      [toUserId]: (prev[toUserId] || 0) + amount,
+    }));
+    const entry = { id: String(Date.now()) + String(Math.random()).slice(2, 8), userId: fromUserId, amount: -amount, type: 'transfer_out', description: `Transferido a ${toUserId}`, date: new Date().toISOString() };
+    setLoyaltyHistory(prev => [...prev, entry]);
+    const entryIn = { id: String(Date.now()) + String(Math.random()).slice(2, 8), userId: toUserId, amount, type: 'transfer_in', description: `Recibido de ${fromUserId}`, date: new Date().toISOString() };
+    setLoyaltyHistory(prev => [...prev, entryIn]);
+    return true;
+  }, [loyaltyPoints]);
+
+  const createTask = useCallback(({ title, description, childId, tokenReward, createdBy, expiresAt }) => {
     const reward = Number(tokenReward);
     const deducted = deductTokens(createdBy, reward);
     if (!deducted) return null;
@@ -297,7 +346,7 @@ export function GlobalProvider({ children }) {
       tokenReward: reward,
       status: 'pending',
       createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + TASK_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: expiresAt || new Date(Date.now() + TASK_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString(),
     };
     setTasks(prev => [...prev, task]);
     return task;
@@ -311,10 +360,20 @@ export function GlobalProvider({ children }) {
     return tasks.filter(t => t.childId === childId);
   }, [tasks]);
 
+  const startTask = useCallback((taskId) => {
+    setTasks(prev => prev.map(t =>
+      t.id === taskId && t.status === 'pending' ? { ...t, status: 'in_progress', startedAt: new Date().toISOString() } : t
+    ));
+  }, []);
+
+  const saveTaskPhoto = useCallback((taskId, photoUri) => {
+    setTaskPhotos(prev => ({ ...prev, [taskId]: photoUri }));
+  }, []);
+
   const completeTask = useCallback((taskId) => {
     let completedTask = null;
     setTasks(prev => prev.map(t => {
-      if (t.id === taskId && t.status === 'pending') {
+      if (t.id === taskId && (t.status === 'pending' || t.status === 'in_progress')) {
         completedTask = t;
         return { ...t, status: 'completed', completedAt: new Date().toISOString() };
       }
@@ -341,6 +400,14 @@ export function GlobalProvider({ children }) {
 
   const rejectTask = useCallback((taskId) => {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'rejected' } : t));
+  }, []);
+
+  const redoTask = useCallback((taskId) => {
+    setTasks(prev => prev.map(t => t.id === taskId && (t.status === 'completed' || t.status === 'rejected') ? { ...t, status: 'pending', completedAt: undefined, redoneAt: new Date().toISOString() } : t));
+  }, []);
+
+  const sendReminder = useCallback((taskId) => {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, lastReminderAt: new Date().toISOString() } : t));
   }, []);
 
   const expireOverdueTasks = useCallback(() => {
@@ -601,10 +668,64 @@ export function GlobalProvider({ children }) {
     setPrizes(prev => prev.map(p => p.id === prizeId ? { ...p, usedCount: p.usedCount + 1 } : p));
   }, []);
 
+  const getPrizesForChild = useCallback((childId) => {
+    const child = users.find(u => u.id === childId);
+    if (!child?.tutorId) return [];
+    return prizes
+      .filter(p => p.createdBy === child.tutorId)
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }, [users, prizes]);
+
+  const redeemPrize = useCallback((childId, prizeId) => {
+    const prize = prizes.find(p => p.id === prizeId);
+    if (!prize) return { success: false, error: 'Premio no encontrado' };
+    const child = users.find(u => u.id === childId);
+    if (!child) return { success: false, error: 'Usuario no encontrado' };
+    const ok = deductTokens(childId, prize.tokenCost);
+    if (!ok) return { success: false, error: 'No tenés suficientes tokens' };
+    incrementPrizeUsed(prizeId);
+    return { success: true };
+  }, [prizes, users, deductTokens, incrementPrizeUsed]);
+
+  const createList = useCallback((name) => {
+    const list = { id: String(Date.now()), name, items: [], completed: false, createdAt: new Date().toISOString() };
+    setTodoLists(prev => [...prev, list]);
+  }, []);
+
+  const deleteList = useCallback((id) => {
+    setTodoLists(prev => prev.filter(l => l.id !== id));
+  }, []);
+
+  const markListCompleted = useCallback((id) => {
+    setTodoLists(prev => prev.map(l => l.id === id ? { ...l, completed: true } : l));
+  }, []);
+
+  const addListItem = useCallback((listId, text) => {
+    setTodoLists(prev => prev.map(l =>
+      l.id === listId ? { ...l, items: [...l.items, { id: String(Date.now()), text, checked: false }] } : l
+    ));
+  }, []);
+
+  const toggleListItem = useCallback((listId, itemId) => {
+    setTodoLists(prev => prev.map(l =>
+      l.id === listId ? { ...l, items: l.items.map(i => i.id === itemId ? { ...i, checked: !i.checked } : i) } : l
+    ));
+  }, []);
+
+  const deleteListItem = useCallback((listId, itemId) => {
+    setTodoLists(prev => prev.map(l =>
+      l.id === listId ? { ...l, items: l.items.filter(i => i.id !== itemId) } : l
+    ));
+  }, []);
+
+  const renameList = useCallback((id, name) => {
+    setTodoLists(prev => prev.map(l => l.id === id ? { ...l, name } : l));
+  }, []);
+
   return (
     <GlobalContext.Provider value={{
-      loaded, users, currentUser, login, register, updatePhone, updatePassword, logout, getTutorName, getUserTokens, getChildren, addTokens, deductTokens, moveTokens,
-      tokenBatches, tasks, createTask, getTasksForAdult, getTasksForChild, completeTask, approveTask, rejectTask,
+      loaded, users, currentUser, login, register, updatePhone, updatePassword, logout, getTutorName, getUserTokens, getChildren, addTokens, deductTokens, moveTokens, moveLoyaltyPoints,
+      tokenBatches, tasks, createTask, getTasksForAdult, getTasksForChild, startTask, completeTask, approveTask, rejectTask, redoTask, sendReminder, saveTaskPhoto, taskPhotos,
       expireOverdueTasks, getPendingTaskTokens, getPendingTasksWithDetails, getPurchaseHistory,
       memberships, requestMembership, markPaymentSent, verifyMembership, getUserMembership, getPendingVerifications,
       invites, getReferralCode, getInvites, getTokensFromInvites,
@@ -612,7 +733,8 @@ export function GlobalProvider({ children }) {
       redeemPointsForMembership, redeemPointsForTokens, redeemTokensTiered,
       LOYALTY_RATES, REDEEM_MEMBERSHIP_POINTS, REDEEM_TOKEN_POINTS, TOKEN_REDEEM_OPTIONS,
       surprises, createAndSendSurprise, getSurprisesForAdult, getSurprisesForChild, openSurprise, claimSurprise,
-      prizes, createPrize, deletePrize, getAdultPrizes, incrementPrizeUsed,
+      prizes, createPrize, deletePrize, getAdultPrizes, incrementPrizeUsed, getPrizesForChild, redeemPrize,
+      todoLists, createList, deleteList, markListCompleted, addListItem, toggleListItem, deleteListItem, renameList,
     }}>
       {children}
     </GlobalContext.Provider>
