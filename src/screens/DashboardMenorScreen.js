@@ -145,13 +145,20 @@ function AdCarousel({ data }) {
   );
 }
 
-export default function DashboardMenorScreen({ navigation }) {
+export default function DashboardMenorScreen({ navigation, route }) {
   const insets = useSafeAreaInsets();
   const { currentUser, getUserTokens, getUserLoyaltyPoints, getTutorName, logout } = useGlobal();
   const myTokens = getUserTokens(currentUser?.id);
   const myLoyaltyPoints = getUserLoyaltyPoints(currentUser?.id);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const drawerAnim = useRef(new Animated.Value(-width * 0.75)).current;
+
+  useEffect(() => {
+    if (route?.params?.openDrawer) {
+      toggleDrawer(true);
+      navigation.setParams({ openDrawer: undefined });
+    }
+  }, [route?.params?.openDrawer]);
 
   const toggleDrawer = (open) => {
     setIsDrawerOpen(open);
@@ -274,6 +281,10 @@ export default function DashboardMenorScreen({ navigation }) {
               <Ionicons name="home-outline" size={22} color="#334155" style={styles.drawerItemIcon} />
               <Text style={styles.drawerItemText}>Inicio</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { toggleDrawer(false); navigation.navigate('MisData', { fromDrawer: true }); }}>
+              <Ionicons name="person-outline" size={22} color="#334155" style={styles.drawerItemIcon} />
+              <Text style={styles.drawerItemText}>Mis datos</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.drawerItem} onPress={() => { toggleDrawer(false); navigation.navigate('TareasMenor'); }}>
               <Ionicons name="list-outline" size={22} color="#334155" style={styles.drawerItemIcon} />
               <Text style={styles.drawerItemText}>Mis tareas</Text>
@@ -281,6 +292,11 @@ export default function DashboardMenorScreen({ navigation }) {
             <TouchableOpacity style={styles.drawerItem} onPress={() => { toggleDrawer(false); navigation.navigate('SurprisesList'); }}>
               <Ionicons name="sparkles-outline" size={22} color="#334155" style={styles.drawerItemIcon} />
               <Text style={styles.drawerItemText}>Sorpresas</Text>
+            </TouchableOpacity>
+            <View style={styles.drawerDivider} />
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { toggleDrawer(false); navigation.navigate('Invitar', { fromDrawer: true }); }}>
+              <Ionicons name="gift-outline" size={22} color="#334155" style={styles.drawerItemIcon} />
+              <Text style={styles.drawerItemText}>Invitar amig@</Text>
             </TouchableOpacity>
             <View style={styles.drawerDivider} />
             <TouchableOpacity style={styles.drawerItem} onPress={logout}>

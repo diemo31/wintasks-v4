@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from '../lib/supabase';
 
 const GlobalContext = createContext();
 
@@ -18,52 +18,45 @@ export function getPasswordErrors(password) {
   return errors;
 }
 
-const DEMO_USERS = [
-  { id: '1', nombre: 'Guille', apellido: 'Adulto', email: 'guilleadulto@gmail.com', alias: 'guillepadre', phone: '+541122222222', fechaNac: '10/05/1984', age: 42, role: 'adulto', password: 'Pass1234' },
-  { id: '2', nombre: 'Ana', apellido: 'Martínez', email: 'anita@email.com', alias: 'anita123', phone: '+541122221111', fechaNac: '10/07/2014', age: 10, role: 'menor', password: 'Pass1234', tutorId: '1' },
-  { id: '3', nombre: 'Lucas', apellido: 'Adulto', email: 'lucas@email.com', alias: 'lucasadulto', phone: '+541122223333', fechaNac: '15/03/1980', age: 46, role: 'adulto', password: 'Pass1234' },
-];
-
 const EXPIRY_MONTHS = 6;
 const SIGNUP_TOKEN_BONUS = 200;
 const TASK_COMPLETE_POINTS = 10;
 const TASK_EXPIRY_DAYS = 7;
 
+const DEMO_ADULT_ID = '5c44f263-cb3d-4e4e-9d9d-97956bc882f3';
+const DEMO_CHILD_ID = '3317ce61-1473-44e6-b5c5-5d5e4f140aa6';
+
 const now = new Date();
 const exp6 = new Date(now.getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString();
 const INITIAL_TOKEN_BATCHES = [
-  { id: 'b1', userId: '1', amount: 200, remaining: 167, source: 'signup', acquiredAt: now.toISOString(), expiresAt: exp6 },
-  { id: 'b2', userId: '2', amount: 50, remaining: 50, source: 'signup', acquiredAt: now.toISOString(), expiresAt: exp6 },
-  { id: 'b3', userId: '2', amount: 10, remaining: 10, source: 'task_reward', acquiredAt: '2026-05-12T18:00:00Z', expiresAt: new Date(new Date('2026-05-12T18:00:00Z').getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() },
-  { id: 'b4', userId: '2', amount: 15, remaining: 15, source: 'task_reward', acquiredAt: '2026-05-07T12:00:00Z', expiresAt: new Date(new Date('2026-05-07T12:00:00Z').getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() },
-  { id: 'b5', userId: '2', amount: 5, remaining: 5, source: 'task_reward', acquiredAt: '2026-03-16T16:00:00Z', expiresAt: new Date(new Date('2026-03-16T16:00:00Z').getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() },
-  { id: 'b6', userId: '2', amount: 12, remaining: 12, source: 'task_reward', acquiredAt: '2026-06-18T17:00:00Z', expiresAt: new Date(new Date('2026-06-18T17:00:00Z').getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() },
-  { id: 'b7', userId: '2', amount: 7, remaining: 7, source: 'task_reward', acquiredAt: '2026-06-02T12:00:00Z', expiresAt: new Date(new Date('2026-06-02T12:00:00Z').getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() },
-  { id: 'b8', userId: '2', amount: 6, remaining: 6, source: 'task_reward', acquiredAt: '2026-06-10T16:00:00Z', expiresAt: new Date(new Date('2026-06-10T16:00:00Z').getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() },
-  { id: 'b9', userId: '2', amount: 5, remaining: 5, source: 'task_reward', acquiredAt: '2026-06-15T14:00:00Z', expiresAt: new Date(new Date('2026-06-15T14:00:00Z').getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'b1', userId: DEMO_ADULT_ID, amount: 200, remaining: 167, source: 'signup', acquiredAt: now.toISOString(), expiresAt: exp6 },
+  { id: 'b2', userId: DEMO_CHILD_ID, amount: 50, remaining: 50, source: 'signup', acquiredAt: now.toISOString(), expiresAt: exp6 },
+  { id: 'b3', userId: DEMO_CHILD_ID, amount: 10, remaining: 10, source: 'task_reward', acquiredAt: '2026-05-12T18:00:00Z', expiresAt: new Date(new Date('2026-05-12T18:00:00Z').getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'b4', userId: DEMO_CHILD_ID, amount: 15, remaining: 15, source: 'task_reward', acquiredAt: '2026-05-07T12:00:00Z', expiresAt: new Date(new Date('2026-05-07T12:00:00Z').getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'b5', userId: DEMO_CHILD_ID, amount: 5, remaining: 5, source: 'task_reward', acquiredAt: '2026-03-16T16:00:00Z', expiresAt: new Date(new Date('2026-03-16T16:00:00Z').getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'b6', userId: DEMO_CHILD_ID, amount: 12, remaining: 12, source: 'task_reward', acquiredAt: '2026-06-18T17:00:00Z', expiresAt: new Date(new Date('2026-06-18T17:00:00Z').getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'b7', userId: DEMO_CHILD_ID, amount: 7, remaining: 7, source: 'task_reward', acquiredAt: '2026-06-02T12:00:00Z', expiresAt: new Date(new Date('2026-06-02T12:00:00Z').getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'b8', userId: DEMO_CHILD_ID, amount: 6, remaining: 6, source: 'task_reward', acquiredAt: '2026-06-10T16:00:00Z', expiresAt: new Date(new Date('2026-06-10T16:00:00Z').getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: 'b9', userId: DEMO_CHILD_ID, amount: 5, remaining: 5, source: 'task_reward', acquiredAt: '2026-06-15T14:00:00Z', expiresAt: new Date(new Date('2026-06-15T14:00:00Z').getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() },
 ];
-const INITIAL_LOYALTY = { '1': 40, '2': 0 };
+const INITIAL_LOYALTY = { [DEMO_ADULT_ID]: 40, [DEMO_CHILD_ID]: 0 };
 const INITIAL_TASKS = [
-  // 4 completadas
-  { id: 't1', title: 'Ordenar la habitación', description: '', childId: '2', createdBy: '1', tokenReward: 10, status: 'approved', createdAt: '2026-05-10T14:00:00Z', completedAt: '2026-05-12T16:00:00Z', approvedAt: '2026-05-12T18:00:00Z', expiresAt: '2026-05-17T14:00:00Z' },
-  { id: 't2', title: 'Pasear al perro', description: '', childId: '2', createdBy: '1', tokenReward: 15, status: 'approved', createdAt: '2026-05-05T10:00:00Z', completedAt: '2026-05-07T11:00:00Z', approvedAt: '2026-05-07T12:00:00Z', expiresAt: '2026-05-12T10:00:00Z' },
-  { id: 't3', title: 'Hacer la tarea de matemáticas', description: '', childId: '2', createdBy: '1', tokenReward: 8, status: 'completed', createdAt: '2026-04-20T09:00:00Z', completedAt: '2026-04-22T15:00:00Z', expiresAt: '2026-04-27T09:00:00Z' },
-  { id: 't4', title: 'Lavar los platos', description: '', childId: '2', createdBy: '1', tokenReward: 5, status: 'approved', createdAt: '2026-03-15T12:00:00Z', completedAt: '2026-03-16T14:00:00Z', approvedAt: '2026-03-16T16:00:00Z', expiresAt: '2026-03-22T12:00:00Z' },
-  // 2 vencidas
-  { id: 't5', title: 'Limpiar el escritorio', description: '', childId: '2', createdBy: '1', tokenReward: 10, status: 'expired', createdAt: '2026-05-20T08:00:00Z', expiresAt: '2026-05-27T08:00:00Z' },
-  { id: 't6', title: 'Regar las plantas', description: '', childId: '2', createdBy: '1', tokenReward: 6, status: 'expired', createdAt: '2026-06-01T09:00:00Z', expiresAt: '2026-06-08T09:00:00Z' },
-  // 3 pendientes
-  { id: 't7', title: 'Barrer la cocina', description: '', childId: '2', createdBy: '1', tokenReward: 8, status: 'pending', createdAt: '2026-06-10T10:00:00Z', expiresAt: '2026-06-24T10:00:00Z' },
-  { id: 't8', title: 'Sacar la basura', description: '', childId: '2', createdBy: '1', tokenReward: 5, status: 'pending', createdAt: '2026-06-12T11:00:00Z', expiresAt: '2026-06-26T11:00:00Z' },
-  { id: 't9', title: 'Estudiar para el examen', description: '', childId: '2', createdBy: '1', tokenReward: 20, status: 'pending', createdAt: '2026-06-15T14:00:00Z', expiresAt: '2026-06-29T14:00:00Z' },
-  // 4 realizadas en junio
-  { id: 't10', title: 'Ordenar el cuarto', description: '', childId: '2', createdBy: '1', tokenReward: 12, status: 'approved', createdAt: '2026-06-01T10:00:00Z', completedAt: '2026-06-18T15:00:00Z', approvedAt: '2026-06-18T17:00:00Z', expiresAt: '2026-06-08T10:00:00Z' },
-  { id: 't11', title: 'Doblar la ropa', description: '', childId: '2', createdBy: '1', tokenReward: 7, status: 'approved', createdAt: '2026-06-01T09:00:00Z', completedAt: '2026-06-02T10:00:00Z', approvedAt: '2026-06-02T12:00:00Z', expiresAt: '2026-06-08T09:00:00Z' },
-  { id: 't12', title: 'Preparar la mochila', description: '', childId: '2', createdBy: '1', tokenReward: 6, status: 'approved', createdAt: '2026-06-08T08:00:00Z', completedAt: '2026-06-10T14:00:00Z', approvedAt: '2026-06-10T16:00:00Z', expiresAt: '2026-06-15T08:00:00Z' },
-  { id: 't13', title: 'Ayudar a poner la mesa', description: '', childId: '2', createdBy: '1', tokenReward: 5, status: 'approved', createdAt: '2026-06-12T11:00:00Z', completedAt: '2026-06-15T12:00:00Z', approvedAt: '2026-06-15T14:00:00Z', expiresAt: '2026-06-19T11:00:00Z' },
+  { id: 't1', title: 'Ordenar la habitaci\u00f3n', description: '', childId: DEMO_CHILD_ID, createdBy: DEMO_ADULT_ID, tokenReward: 10, status: 'approved', createdAt: '2026-05-10T14:00:00Z', completedAt: '2026-05-12T16:00:00Z', approvedAt: '2026-05-12T18:00:00Z', expiresAt: '2026-05-17T14:00:00Z' },
+  { id: 't2', title: 'Pasear al perro', description: '', childId: DEMO_CHILD_ID, createdBy: DEMO_ADULT_ID, tokenReward: 15, status: 'approved', createdAt: '2026-05-05T10:00:00Z', completedAt: '2026-05-07T11:00:00Z', approvedAt: '2026-05-07T12:00:00Z', expiresAt: '2026-05-12T10:00:00Z' },
+  { id: 't3', title: 'Hacer la tarea de matem\u00e1ticas', description: '', childId: DEMO_CHILD_ID, createdBy: DEMO_ADULT_ID, tokenReward: 8, status: 'completed', createdAt: '2026-04-20T09:00:00Z', completedAt: '2026-04-22T15:00:00Z', expiresAt: '2026-04-27T09:00:00Z' },
+  { id: 't4', title: 'Lavar los platos', description: '', childId: DEMO_CHILD_ID, createdBy: DEMO_ADULT_ID, tokenReward: 5, status: 'approved', createdAt: '2026-03-15T12:00:00Z', completedAt: '2026-03-16T14:00:00Z', approvedAt: '2026-03-16T16:00:00Z', expiresAt: '2026-03-22T12:00:00Z' },
+  { id: 't5', title: 'Limpiar el escritorio', description: '', childId: DEMO_CHILD_ID, createdBy: DEMO_ADULT_ID, tokenReward: 10, status: 'expired', createdAt: '2026-05-20T08:00:00Z', expiresAt: '2026-05-27T08:00:00Z' },
+  { id: 't6', title: 'Regar las plantas', description: '', childId: DEMO_CHILD_ID, createdBy: DEMO_ADULT_ID, tokenReward: 6, status: 'expired', createdAt: '2026-06-01T09:00:00Z', expiresAt: '2026-06-08T09:00:00Z' },
+  { id: 't7', title: 'Barrer la cocina', description: '', childId: DEMO_CHILD_ID, createdBy: DEMO_ADULT_ID, tokenReward: 8, status: 'pending', createdAt: '2026-06-10T10:00:00Z', expiresAt: '2026-06-24T10:00:00Z' },
+  { id: 't8', title: 'Sacar la basura', description: '', childId: DEMO_CHILD_ID, createdBy: DEMO_ADULT_ID, tokenReward: 5, status: 'pending', createdAt: '2026-06-12T11:00:00Z', expiresAt: '2026-06-26T11:00:00Z' },
+  { id: 't9', title: 'Estudiar para el examen', description: '', childId: DEMO_CHILD_ID, createdBy: DEMO_ADULT_ID, tokenReward: 20, status: 'pending', createdAt: '2026-06-15T14:00:00Z', expiresAt: '2026-06-29T14:00:00Z' },
+  { id: 't10', title: 'Ordenar el cuarto', description: '', childId: DEMO_CHILD_ID, createdBy: DEMO_ADULT_ID, tokenReward: 12, status: 'approved', createdAt: '2026-06-01T10:00:00Z', completedAt: '2026-06-18T15:00:00Z', approvedAt: '2026-06-18T17:00:00Z', expiresAt: '2026-06-08T10:00:00Z' },
+  { id: 't11', title: 'Doblar la ropa', description: '', childId: DEMO_CHILD_ID, createdBy: DEMO_ADULT_ID, tokenReward: 7, status: 'approved', createdAt: '2026-06-01T09:00:00Z', completedAt: '2026-06-02T10:00:00Z', approvedAt: '2026-06-02T12:00:00Z', expiresAt: '2026-06-08T09:00:00Z' },
+  { id: 't12', title: 'Preparar la mochila', description: '', childId: DEMO_CHILD_ID, createdBy: DEMO_ADULT_ID, tokenReward: 6, status: 'approved', createdAt: '2026-06-08T08:00:00Z', completedAt: '2026-06-10T14:00:00Z', approvedAt: '2026-06-10T16:00:00Z', expiresAt: '2026-06-15T08:00:00Z' },
+  { id: 't13', title: 'Ayudar a poner la mesa', description: '', childId: DEMO_CHILD_ID, createdBy: DEMO_ADULT_ID, tokenReward: 5, status: 'approved', createdAt: '2026-06-12T11:00:00Z', completedAt: '2026-06-15T12:00:00Z', approvedAt: '2026-06-15T14:00:00Z', expiresAt: '2026-06-19T11:00:00Z' },
 ];
 const INITIAL_MEMBERSHIPS = {
-  '1': {
+  [DEMO_ADULT_ID]: {
     plan: '6meses', startDate: '2026-06-19T00:00:00.000Z',
     endDate: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
     status: 'active', paymentRef: 'GRATIS-6M', amountUsd: 0, amountArs: 0, rate: 0,
@@ -73,19 +66,19 @@ const INITIAL_MEMBERSHIPS = {
 };
 const INITIAL_INVITES = {};
 const INITIAL_LOYALTY_HISTORY = [
-  { id: 'lh1', userId: '1', amount: 10, type: 'earn_task', description: 'Tarea "Ordenar la habitación" completada', date: '2026-05-12T16:00:00Z' },
-  { id: 'lh2', userId: '1', amount: 10, type: 'earn_task', description: 'Tarea "Pasear al perro" completada', date: '2026-05-07T11:00:00Z' },
-  { id: 'lh3', userId: '1', amount: 10, type: 'earn_task', description: 'Tarea "Hacer la tarea de matemáticas" completada', date: '2026-04-22T15:00:00Z' },
-  { id: 'lh4', userId: '1', amount: 10, type: 'earn_task', description: 'Tarea "Lavar los platos" completada', date: '2026-03-16T14:00:00Z' },
-  { id: 'lh5', userId: '1', amount: 10, type: 'earn_task', description: 'Tarea "Doblar la ropa" completada', date: '2026-06-02T10:00:00Z' },
-  { id: 'lh6', userId: '1', amount: 10, type: 'earn_task', description: 'Tarea "Preparar la mochila" completada', date: '2026-06-10T14:00:00Z' },
-  { id: 'lh7', userId: '1', amount: 10, type: 'earn_task', description: 'Tarea "Ayudar a poner la mesa" completada', date: '2026-06-15T12:00:00Z' },
-  { id: 'lh8', userId: '1', amount: 10, type: 'earn_task', description: 'Tarea "Ordenar el cuarto" completada', date: '2026-06-18T15:00:00Z' },
+  { id: 'lh1', userId: DEMO_ADULT_ID, amount: 10, type: 'earn_task', description: 'Tarea "Ordenar la habitaci\u00f3n" completada', date: '2026-05-12T16:00:00Z' },
+  { id: 'lh2', userId: DEMO_ADULT_ID, amount: 10, type: 'earn_task', description: 'Tarea "Pasear al perro" completada', date: '2026-05-07T11:00:00Z' },
+  { id: 'lh3', userId: DEMO_ADULT_ID, amount: 10, type: 'earn_task', description: 'Tarea "Hacer la tarea de matem\u00e1ticas" completada', date: '2026-04-22T15:00:00Z' },
+  { id: 'lh4', userId: DEMO_ADULT_ID, amount: 10, type: 'earn_task', description: 'Tarea "Lavar los platos" completada', date: '2026-03-16T14:00:00Z' },
+  { id: 'lh5', userId: DEMO_ADULT_ID, amount: 10, type: 'earn_task', description: 'Tarea "Doblar la ropa" completada', date: '2026-06-02T10:00:00Z' },
+  { id: 'lh6', userId: DEMO_ADULT_ID, amount: 10, type: 'earn_task', description: 'Tarea "Preparar la mochila" completada', date: '2026-06-10T14:00:00Z' },
+  { id: 'lh7', userId: DEMO_ADULT_ID, amount: 10, type: 'earn_task', description: 'Tarea "Ayudar a poner la mesa" completada', date: '2026-06-15T12:00:00Z' },
+  { id: 'lh8', userId: DEMO_ADULT_ID, amount: 10, type: 'earn_task', description: 'Tarea "Ordenar el cuarto" completada', date: '2026-06-18T15:00:00Z' },
 ];
 
 const LOYALTY_RATES = { taskApprove: 10, sorpresa: 10, invite: 50, membership1m: 50, membership3m: 170, membership6m: 360 };
 const REDEEM_MEMBERSHIP_POINTS = 2500;
-const REDEEM_TOKEN_POINTS = 5; // 1 token = 5 puntos
+const REDEEM_TOKEN_POINTS = 5;
 const TOKEN_REDEEM_OPTIONS = [
   { tokens: 500, points: 1000 },
   { tokens: 1000, points: 1400 },
@@ -93,7 +86,7 @@ const TOKEN_REDEEM_OPTIONS = [
 ];
 
 export function GlobalProvider({ children }) {
-  const [users, setUsers] = useState(DEMO_USERS);
+  const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [tokenBatches, setTokenBatches] = useState(INITIAL_TOKEN_BATCHES);
   const [tasks, setTasks] = useState(INITIAL_TASKS);
@@ -107,192 +100,118 @@ export function GlobalProvider({ children }) {
   const [taskPhotos, setTaskPhotos] = useState({});
   const [scoreGoals, setScoreGoals] = useState({});
   const [loaded, setLoaded] = useState(false);
-  const saveTimer = useRef(null);
-
-  const STORAGE_KEYS = ['users', 'tokenBatches', 'tasks', 'memberships', 'invites', 'loyaltyPoints', 'loyaltyHistory', 'surprises', 'prizes', 'todoLists', 'taskPhotos', 'scoreGoals'];
-
-  const stateMap = {
-    users: [users, setUsers],
-    tokenBatches: [tokenBatches, setTokenBatches],
-    tasks: [tasks, setTasks],
-    memberships: [memberships, setMemberships],
-    invites: [invites, setInvites],
-    loyaltyPoints: [loyaltyPoints, setLoyaltyPoints],
-    loyaltyHistory: [loyaltyHistory, setLoyaltyHistory],
-    surprises: [surprises, setSurprises],
-    prizes: [prizes, setPrizes],
-    todoLists: [todoLists, setTodoLists],
-    taskPhotos: [taskPhotos, setTaskPhotos],
-    scoreGoals: [scoreGoals, setScoreGoals],
-  };
-
-  const isEmpty = (val) => {
-    if (Array.isArray(val)) return val.length === 0;
-    if (val && typeof val === 'object') return Object.keys(val).length === 0;
-    return !val;
-  };
 
   useEffect(() => {
-    loadAll();
-  }, []);
-
-  useEffect(() => {
-    if (!loaded) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => saveAll(), 500);
-    return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
-  }, [users, tokenBatches, tasks, memberships, invites, loyaltyPoints, loyaltyHistory, surprises, prizes, todoLists, taskPhotos, scoreGoals, loaded]);
-
-  const saveAll = async () => {
-    try {
-      for (const key of STORAGE_KEYS) {
-        const val = stateMap[key][0];
-        await AsyncStorage.setItem(key, JSON.stringify(val));
-      }
-    } catch (e) { /* silent */ }
-  };
-
-  const loadAll = async () => {
-    try {
-      const saved = {};
-      for (const key of STORAGE_KEYS) {
-        const raw = await AsyncStorage.getItem(key);
-        if (raw) saved[key] = JSON.parse(raw);
-      }
-      for (const key of STORAGE_KEYS) {
-        if (saved[key] && !isEmpty(saved[key])) stateMap[key][1](saved[key]);
-      }
-      // ensure DEMO_USERS are always present (merge by id)
-      setUsers(prev => {
-        const existingIds = new Set(prev.map(u => u.id));
-        const missing = DEMO_USERS.filter(u => !existingIds.has(u.id));
-        return missing.length > 0 ? [...prev, ...missing] : prev;
-      });
-      // ensure INITIAL_TASKS are always present (merge by id, don't overwrite user-created)
-      setTasks(prev => {
-        const existingIds = new Set(prev.map(t => t.id));
-        const missing = INITIAL_TASKS.filter(t => !existingIds.has(t.id));
-        return missing.length > 0 ? [...prev, ...missing] : prev;
-      });
-      // ensure INITIAL_TOKEN_BATCHES are up to date (overwrite demo ids only)
-      setTokenBatches(prev => {
-        const initialMap = {};
-        for (const b of INITIAL_TOKEN_BATCHES) initialMap[b.id] = b;
-        let changed = false;
-        const merged = prev.map(b => {
-          if (initialMap[b.id]) { changed = true; return { ...initialMap[b.id] }; }
-          return b;
-        });
-        for (const b of INITIAL_TOKEN_BATCHES) {
-          if (!prev.some(p => p.id === b.id)) { changed = true; merged.push(b); }
-        }
-        return changed ? merged : prev;
-      });
-      // ensure INITIAL_MEMBERSHIPS keys are present
-      setMemberships(prev => {
-        const merged = { ...prev };
-        for (const key of Object.keys(INITIAL_MEMBERSHIPS)) {
-          if (!merged[key]) merged[key] = INITIAL_MEMBERSHIPS[key];
-        }
-        return merged;
-      });
-    } catch (e) { /* silent */ }
     setLoaded(true);
     expireOverdueTasks();
+  }, []);
+
+  const mapProfile = (p) => ({ ...p, tutorId: p.tutor_id, fechaNac: p.fecha_nac });
+
+  const loadProfiles = (session) => {
+    supabase.from('profiles').select('*').then(({ data }) => {
+      if (!data) return;
+      const mapped = data.map(mapProfile);
+      setUsers(mapped);
+      const me = mapped.find(p => p.id === session.user.id);
+      if (me) setCurrentUser(me);
+    });
   };
 
+  useEffect(() => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        loadProfiles(session);
+      } else if (event === 'SIGNED_OUT') {
+        setCurrentUser(null);
+        setUsers([]);
+      }
+    });
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) loadProfiles(session);
+    });
+    return () => listener?.subscription?.unsubscribe();
+  }, []);
 
-  const login = useCallback((phone, password) => {
-    const user = users.find(u => u.phone === phone && u.password === password);
-    if (user) setCurrentUser(user);
-    return !!user;
-  }, [users]);
+  const login = useCallback(async (email, password) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    return !error;
+  }, []);
 
-  const register = useCallback(({ nombre, apellido, email, alias, phone, age, fechaNac, password, tutorCode, referralCode }) => {
+  const register = useCallback(async ({ nombre, apellido, email, alias, phone, age, fechaNac, password, tutorCode, referralCode }) => {
     const passwordErrors = getPasswordErrors(password);
     if (passwordErrors.length > 0) return { success: false, errors: passwordErrors };
     const isAdult = Number(age) >= 18;
-    const newUser = {
-      id: String(Date.now()),
-      nombre, apellido, email, alias,
-      phone,
-      age: Number(age),
-      fechaNac,
-      password,
-      role: isAdult ? 'adulto' : 'menor',
-      ...(isAdult ? {} : { tutorId: tutorCode || null }),
-    };
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) return { success: false, errors: [error.message] };
+    if (!data?.user) return { success: false, errors: ['Error al crear usuario'] };
+    if (!data?.session) {
+      await supabase.auth.signInWithPassword({ email, password }).catch(() => {});
+    }
+    const userId = data.user.id;
+    const { error: profileError } = await supabase.from('profiles').insert({
+      id: userId, nombre, apellido, email, alias, phone,
+      age: Number(age), fecha_nac: fechaNac, role: isAdult ? 'adulto' : 'menor',
+      ...(isAdult ? {} : { tutor_id: tutorCode || null }),
+    });
+    if (profileError) return { success: false, errors: [profileError.message] };
+    const newUser = { id: userId, nombre, apellido, email, alias, phone, age: Number(age), fechaNac, role: isAdult ? 'adulto' : 'menor', ...(isAdult ? {} : { tutorId: tutorCode || null }) };
     setUsers(prev => [...prev, newUser]);
     setCurrentUser(newUser);
     if (newUser.role === 'adulto') {
-      addTokenBatchDirect(newUser.id, SIGNUP_TOKEN_BONUS);
+      (function addTokenBatchDirect(uid, amt) {
+        setTokenBatches(prev => [...prev, { id: String(Date.now()) + String(Math.random()).slice(2, 8), userId: uid, amount: amt, remaining: amt, source: 'signup', acquiredAt: new Date().toISOString(), expiresAt: new Date(Date.now() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() }]);
+      })(newUser.id, SIGNUP_TOKEN_BONUS);
       const endDate = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString();
-      setMemberships(prev => ({
-        ...prev,
-        [newUser.id]: {
-          plan: '6meses', startDate: new Date().toISOString(), endDate,
-          status: 'active', paymentRef: 'GRATIS-6M', amountUsd: 0, amountArs: 0, rate: 0,
-          createdAt: new Date().toISOString(), expiresAt: endDate, userEmail: email || '',
-        },
-      }));
-    }
-    function addTokenBatchDirect(uid, amt) {
-      const batch = {
-        id: String(Date.now()) + String(Math.random()).slice(2, 8),
-        userId: uid, amount: amt, remaining: amt, source: 'signup',
-        acquiredAt: new Date().toISOString(),
-        expiresAt: new Date(Date.now() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString(),
-      };
-      setTokenBatches(prev => [...prev, batch]);
+      setMemberships(prev => ({ ...prev, [newUser.id]: { plan: '6meses', startDate: new Date().toISOString(), endDate, status: 'active', paymentRef: 'GRATIS-6M', amountUsd: 0, amountArs: 0, rate: 0, createdAt: new Date().toISOString(), expiresAt: endDate, userEmail: email || '' } }));
     }
     if (referralCode && isAdult) {
-      const inviter = users.find(u => u.alias === referralCode && u.id !== newUser.id);
+      const { data: refData } = await supabase.rpc('lookup_profile', { search_text: referralCode }).catch(() => ({}));
+      const inviter = refData?.[0] && refData[0].user_id !== newUser.id ? refData[0] : null;
       if (inviter) {
-        setLoyaltyPoints(prev => ({ ...prev, [inviter.id]: (prev[inviter.id] || 0) + 50 }));
-        const invite = { invitedUserId: newUser.id, invitedAlias: alias, invitedAt: new Date().toISOString() };
-        setInvites(prev => ({ ...prev, [inviter.id]: [...(prev[inviter.id] || []), invite] }));
-        const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-        setMemberships(prev => ({
-          ...prev,
-          [newUser.id]: {
-            plan: '1mes', startDate: new Date().toISOString(), endDate,
-            status: 'active', paymentRef: `REF-${newUser.id.slice(-4)}`, amountUsd: 0, amountArs: 0, rate: 0,
-            createdAt: new Date().toISOString(), expiresAt: endDate, userEmail: email || '',
-          },
-        }));
+        setLoyaltyPoints(prev => ({ ...prev, [inviter.user_id]: (prev[inviter.user_id] || 0) + 50 }));
+        setInvites(prev => ({ ...prev, [inviter.user_id]: [...(prev[inviter.user_id] || []), { invitedUserId: newUser.id, invitedAlias: alias, invitedAt: new Date().toISOString() }] }));
+        setMemberships(prev => ({ ...prev, [newUser.id]: { plan: '1mes', startDate: new Date().toISOString(), endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), status: 'active', paymentRef: `REF-${newUser.id.slice(-4)}`, amountUsd: 0, amountArs: 0, rate: 0, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), userEmail: email || '' } }));
       }
     }
     return { success: true, user: newUser };
   }, [users]);
 
-  const registerChild = useCallback(({ nombre, apellido, email, alias, phone, age, fechaNac, password }) => {
+  const registerChild = useCallback(async ({ nombre, apellido, email, alias, phone, age, fechaNac, password }) => {
     const passwordErrors = getPasswordErrors(password);
     if (passwordErrors.length > 0) return { success: false, errors: passwordErrors };
-    const newUser = {
-      id: String(Date.now()),
-      nombre, apellido, email, alias,
-      phone,
-      age: Number(age),
-      fechaNac,
-      password,
-      role: 'menor',
-      tutorId: currentUser?.id || null,
-    };
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) return { success: false, errors: [error.message] };
+    if (!data?.user) return { success: false, errors: ['Error al crear usuario'] };
+    if (!data?.session) {
+      await supabase.auth.signInWithPassword({ email, password }).catch(() => {});
+    }
+    const userId = data.user.id;
+    const { error: profileError } = await supabase.from('profiles').insert({
+      id: userId, nombre, apellido, email, alias, phone,
+      age: Number(age), fecha_nac: fechaNac, role: 'menor',
+      tutor_id: currentUser?.id || null,
+    });
+    if (profileError) return { success: false, errors: [profileError.message] };
+    const newUser = { id: userId, nombre, apellido, email, alias, phone, age: Number(age), fechaNac, role: 'menor', tutorId: currentUser?.id || null };
     setUsers(prev => [...prev, newUser]);
     return { success: true, user: newUser };
   }, [currentUser]);
 
-  const updatePhone = useCallback((userId, newPhone) => {
+  const updatePhone = useCallback(async (userId, newPhone) => {
+    await supabase.from('profiles').update({ phone: newPhone }).eq('id', userId);
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, phone: newPhone } : u));
     setCurrentUser(prev => prev?.id === userId ? { ...prev, phone: newPhone } : prev);
   }, []);
 
-  const updatePassword = useCallback((userId, newPassword) => {
-    setUsers(prev => prev.map(u => u.id === userId ? { ...u, password: newPassword } : u));
-    setCurrentUser(prev => prev?.id === userId ? { ...prev, password: newPassword } : prev);
+  const updatePassword = useCallback(async (newPassword) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    return !error;
   }, []);
 
-  const logout = useCallback(() => setCurrentUser(null), []);
+  const logout = useCallback(async () => {
+    await supabase.auth.signOut();
+  }, []);
 
   const getTutorName = useCallback((tutorId) => {
     const tutor = users.find(u => u.id === tutorId);
@@ -935,7 +854,7 @@ export function GlobalProvider({ children }) {
 
   return (
     <GlobalContext.Provider value={{
-      loaded, users, currentUser, login, register, registerChild, updatePhone, updatePassword, logout, getTutorName, getUserTokens, getChildren, addTokens, deductTokens, transferTokens, moveTokens, moveLoyaltyPoints,
+      loaded, users, setUsers, currentUser, login, register, registerChild, updatePhone, updatePassword, logout, getTutorName, getUserTokens, getChildren, addTokens, deductTokens, transferTokens, moveTokens, moveLoyaltyPoints,
       tokenBatches, spendTokens, tasks, createTask, getTasksForAdult, getTasksForChild, startTask, completeTask, approveTask, rejectTask, redoTask, sendReminder, saveTaskPhoto, taskPhotos,
       expireOverdueTasks, getPendingTaskTokens, getPendingTasksWithDetails, getPurchaseHistory,
       memberships, requestMembership, markPaymentSent, verifyMembership, getUserMembership, getPendingVerifications,

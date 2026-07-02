@@ -3,15 +3,17 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView,
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme';
 import { useGlobal, getPasswordErrors } from '../context/GlobalContext';
+import { supabase } from '../lib/supabase';
 import PearlBackground from '../components/PearlBackground';
 
 export default function LoginScreen({ navigation }) {
-  const { users, login, updatePassword } = useGlobal();
+  const { users, login, setUsers } = useGlobal();
   const scrollRef = useRef(null);
   const [kbHeight, setKbHeight] = useState(0);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [resolvedUser, setResolvedUser] = useState(null);
 
   const [recovery, setRecovery] = useState(null);
   const [recEmail, setRecEmail] = useState('');
@@ -37,31 +39,48 @@ export default function LoginScreen({ navigation }) {
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 300);
   }, [kbHeight]);
 
-  const findUser = () => {
-    const val = identifier.trim();
-    if (!val) return null;
-    const digits = val.replace(/\D/g, '');
-    return users.find(u => u.alias === val || u.email === val || u.phone.replace(/\D/g, '').endsWith(digits));
-  };
+  useEffect(() => {
+    const t = setTimeout(async () => {
+      const val = identifier.trim();
+      if (!val || val.length < 3) { setResolvedUser(null); return; }
+      const local = matchUser(val);
+      if (local) { setResolvedUser(local); return; }
+      const r = await resolveUser(val);
+      setResolvedUser(r);
+    }, 400);
+    return () => clearTimeout(t);
+  }, [identifier]);
 
   const matchUser = (val) => {
     const digits = val.replace(/\D/g, '');
     return users.find(u => u.alias === val || u.email === val || u.phone.replace(/\D/g, '').endsWith(digits));
   };
 
-  const handleLogin = () => {
+  const resolveUser = async (val) => {
+    const local = matchUser(val);
+    if (local) return local;
+    try {
+      const { data, error } = await supabase.rpc('find_user_for_login', { search_text: val });
+      if (!error && data && data.length > 0) {
+        const u = data[0];
+        return { id: u.user_id, email: u.user_email, alias: u.user_alias, phone: u.user_phone };
+      }
+    } catch (_) {}
+    return null;
+  };
+
+  const handleLogin = async () => {
     if (!identifier || !password) {
       Alert.alert('Error', 'Completá todos los campos');
       return;
     }
     const val = identifier.trim();
-    const matched = matchUser(val);
-    if (!matched) {
-      Alert.alert('Error', 'Usuario, teléfono o correo no encontrado');
-      return;
-    }
-    if (!login(matched.phone, password)) {
-      Alert.alert('Error', 'Contraseña incorrecta');
+    let matched = matchUser(val);
+    if (!matched) matched = await resolveUser(val);
+    const email = matched?.email || val;
+    const ok = await login(email, password);
+    if (!ok) {
+      Alert.alert('Error', matched ? 'Contraseña incorrecta' : 'Usuario no encontrado. Probá con tu correo electrónico.');
     }
   };
 
@@ -74,11 +93,12 @@ export default function LoginScreen({ navigation }) {
 
   const [recUser, setRecUser] = useState(null);
 
-  const handleStartRecovery = () => {
+  const handleStartRecovery = async () => {
     const val = identifier.trim();
     if (!val) { Alert.alert('Ayuda', 'Primero ingresá tu usuario, teléfono o correo'); return; }
-    const user = matchUser(val);
-    if (!user) { Alert.alert('No encontrado', 'No encontramos un usuario con esos datos'); return; }
+    let user = matchUser(val);
+    if (!user) user = await resolveUser(val);
+    if (!user) { Alert.alert('No encontrado', 'No encontramos un usuario con esos datos. Probá con tu correo electrónico.'); return; }
     if (!user.email) { Alert.alert('Sin correo', 'Este usuario no tiene correo registrado'); return; }
     setRecUser(user);
     setRecEmail('');
@@ -106,7 +126,7 @@ export default function LoginScreen({ navigation }) {
     setRecovery('newpass');
   };
 
-  const handleResetPassword = () => {
+  const handleResetPassword = async () => {
     if (!recNewPass || !recConfirmPass) {
       Alert.alert('Error', 'Completá todos los campos');
       return;
@@ -120,16 +140,20 @@ export default function LoginScreen({ navigation }) {
       Alert.alert('Contraseña inválida', errors.join('\n'));
       return;
     }
-    const user = users.find(u => u.email === recEmail);
-    if (user) {
-      updatePassword(user.id, recNewPass);
+    if (recUser) {
+      const { error } = await supabase.rpc('recover_password', { user_id: recUser.id, new_password: recNewPass });
+      if (error) {
+        Alert.alert('Error', 'No se pudo actualizar la contraseña');
+        return;
+      }
+      setUsers(prev => prev.map(u => u.id === recUser.id ? { ...u, password: recNewPass } : u));
       Alert.alert('Listo', 'Contraseña actualizada', [
         { text: 'OK', onPress: () => { setRecovery(null); setPassword(''); setRecNewPass(''); setRecConfirmPass(''); } },
       ]);
     }
   };
 
-  const user = findUser();
+  const user = resolvedUser;
 
   return (
     <PearlBackground>

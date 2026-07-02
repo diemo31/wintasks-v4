@@ -97,6 +97,8 @@ function AppNavigator() {
         <Stack.Group>
           <Stack.Screen name="DashboardMenor" component={DashboardMenorScreen} options={{ headerShown: false }} />
           <Stack.Screen name="TareasMenor" component={TareasMenorScreen} options={{ title: 'Mis tareas' }} />
+          <Stack.Screen name="MisData" component={MisDataScreen} options={{ title: 'Mis datos' }} />
+          <Stack.Screen name="Invitar" component={InvitarScreen} options={{ headerShown: false }} />
           <Stack.Screen name="TaskProgress" component={TaskProgressScreen} options={{ title: 'Tarea' }} />
           <Stack.Screen name="ToDo" component={ToDoScreen} options={{ title: 'To do' }} />
           <Stack.Screen name="PremiosMenor" component={PremiosMenorScreen} options={{ title: 'Premios' }} />

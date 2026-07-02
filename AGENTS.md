@@ -645,3 +645,75 @@ Ambas pantallas consultan `https://dolarapi.com/v1/dolares` al montarse para obt
 - Las funciones serverless están en `api/paypal/` y se despliegan en Vercel
 - `vercel.json` configura `maxDuration: 10` para evitar timeouts
 - El frontend apunta a `https://win-tasks.vercel.app` (cambiar URL en cada screen si se cambia el dominio)
+
+---
+
+## 11. Supabase — Stage 1 (Auth + Profiles)
+
+### Conexion
+- **URL**: `https://hxqjhqkmzhrreysvdycl.supabase.co`
+- **Anon key** en `src/lib/supabase.js`
+- **Service role key** usada solo en scripts de seed/migracion (nunca en cliente)
+
+### Auth
+| Operacion | Metodo | Archivo |
+|-----------|--------|---------|
+| Login | `supabase.auth.signInWithPassword({ email, password })` | GlobalContext.js |
+| Register | `supabase.auth.signUp({ email, password })` + profile insert | GlobalContext.js |
+| Logout | `supabase.auth.signOut()` | GlobalContext.js |
+| Update password | `supabase.auth.updateUser({ password })` | GlobalContext.js |
+| Password recovery | RPC `recover_password(user_id, new_password)` via SECURITY DEFINER | LoginScreen.js |
+
+### State listener (GlobalContext.js)
+- `onAuthStateChange` escucha `SIGNED_IN` → fetches todos los profiles → setea `users` y `currentUser`.
+- `SIGNED_OUT` → limpia `currentUser` y `users`.
+- En mount, checkea sesion existente via `getSession()`.
+
+### RPCs públicas (SECURITY DEFINER, grant to anon)
+
+#### `find_user_for_login(search_text TEXT)`
+- **Proposito**: Resolver alias/telefono a email para login.
+- **Retorna**: `user_id, user_email, user_alias, user_phone`
+- **Busqueda**: email exacto, alias exacto, phone exacto, phone por digitos (LIKE).
+- **Usado en**: LoginScreen `resolveUser()`.
+
+#### `lookup_profile(search_text TEXT)`
+- **Proposito**: Busqueda general de perfiles (duplicados, codigo tutor, referidos).
+- **Retorna**: `user_id, user_alias, user_phone, user_email, user_role`
+- **Busqueda**: misma que find_user_for_login.
+- **Usado en**: RegisterScreen (duplicados, validacion tutor), GlobalContext.register (referidos).
+
+#### `recover_password(user_id UUID, new_password TEXT)`
+- **Proposito**: Actualizar contraseña en `auth.users` sin estar autenticado.
+- **Retorna**: BOOLEAN
+- **Implementacion**: UPDATE auth.users SET encrypted_password = crypt(new_password, gen_salt('bf'))
+- **Usado en**: LoginScreen `handleResetPassword()`.
+
+### Flujo de login
+1. User escribe identificador (alias, email o telefono).
+2. `useEffect` debounced 400ms → `resolveUser()` → RPC `find_user_for_login` → icono verde si existe.
+3. User toca Ingresar → `handleLogin()` → `matchUser()` (local) → `resolveUser()` (RPC fallback) → `login(email, password)` → `signInWithPassword`.
+4. Auth listener `SIGNED_IN` → fetch profiles → set `users` + `currentUser`.
+
+### Flujo de registro
+1. User ingresa telefono → useEffect async → `lookup_profile` RPC → detecta duplicados.
+2. User toca Solicitar codigo → `validatePhone()` async → verifica duplicados via RPC.
+3. Step profile: si menor de 18, pide codigo de tutor.
+4. `handleRegister()` async → `lookupProfile(tutorCode)` → valida que existe y es `role = 'adulto'` → resuelve phone a UUID.
+5. `register()` → `signUp` + profile insert con `tutor_id` = UUID del tutor → referral code via `lookup_profile` RPC.
+6. Auto sign-in si no hay session inmediata.
+
+### Scripts SQL
+| Archivo | Proposito | Ejecutar en |
+|---------|-----------|-------------|
+| `scripts/setup_login.sql` | Crear `find_user_for_login` RPC | SQL Editor (ya ejecutado) |
+| `scripts/setup_stage1.sql` | Crear `lookup_profile` + `recover_password` RPCs | SQL Editor |
+
+### Datos de prueba
+- **Adulto**: `guilleadulto@gmail.com` / `Guille1` (alias: `guillepadre`, phone: `+541111111111`)
+- **Menor**: `anita123@gmail.com` / `Anita1` (alias: `anita123`, phone: `+541122222222`, tutor: adult)
+- IDs: adult = `5c44f263-...`, child = `3317ce61-...`
+
+### Pendiente (Stage 2+)
+- Migrar tasks, token_batches, prizes, surprises, loyalty, memberships, invites a tablas Supabase.
+- Agregar relacion `tutor_id` como FK real a `profiles.id`.

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Platform,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,6 +8,7 @@ import { SvgXml } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme';
 import { useGlobal, getPasswordErrors } from '../context/GlobalContext';
+import { supabase } from '../lib/supabase';
 
 const LOGO_SVG = `<svg width="600" height="120" viewBox="0 0 600 120" xmlns="http://www.w3.org/2000/svg">
   <g transform="translate(95, 15)">
@@ -111,16 +112,31 @@ export default function RegisterScreen({ navigation }) {
     return 0;
   };
 
+  const checkProfileExists = async (searchText) => {
+    if (users.some(u => u.phone === searchText || u.email === searchText || u.alias === searchText)) return true;
+    try {
+      const { data } = await supabase.rpc('lookup_profile', { search_text: searchText });
+      return data && data.length > 0;
+    } catch (_) { return false; }
+  };
+
+  const lookupProfile = async (searchText) => {
+    try {
+      const { data } = await supabase.rpc('lookup_profile', { search_text: searchText });
+      return data?.[0] || null;
+    } catch (_) { return null; }
+  };
+
   useEffect(() => {
     const raw = phone.replace(/[^0-9]/g, '');
     const expected = getExpectedDigits(selectedCountry.code);
     if (expected > 0 && raw.length === expected) {
       const full = selectedCountry.code + raw;
-      setPhoneExists(users.some(u => u.phone === full));
+      (async () => setPhoneExists(await checkProfileExists(full)))();
     } else {
       setPhoneExists(false);
     }
-  }, [phone, selectedCountry, users]);
+  }, [phone, selectedCountry]);
 
   useEffect(() => {
     let interval;
@@ -138,12 +154,11 @@ export default function RegisterScreen({ navigation }) {
     return `${m}:${sec < 10 ? '0' : ''}${sec}`;
   };
 
-  const validatePhone = () => {
+  const validatePhone = async () => {
     const raw = phone.replace(/[^0-9]/g, '');
     const fullPhone = selectedCountry.code + raw;
 
-    const exists = users.find(u => u.phone === fullPhone);
-    if (exists) {
+    if (await checkProfileExists(fullPhone)) {
       Alert.alert('Error', 'Este número ya está registrado');
       return false;
     }
@@ -196,8 +211,8 @@ export default function RegisterScreen({ navigation }) {
     }
   };
 
-  const handleRequestCode = () => {
-    if (!validatePhone()) return;
+  const handleRequestCode = async () => {
+    if (!(await validatePhone())) return;
     setCodeRequested(true);
     setTimer(120);
     setOtp('');
@@ -232,7 +247,7 @@ export default function RegisterScreen({ navigation }) {
     }
   };
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!nombre || !apellido || !email || !alias || !fechaNac || !password || !confirmPassword) {
       Alert.alert('Error', 'Completá todos los campos');
       return;
@@ -259,8 +274,17 @@ export default function RegisterScreen({ navigation }) {
       Alert.alert('Error', 'Los menores necesitan un código de tutor');
       return;
     }
+    let tutorUuid = null;
+    if (ageNum < 18) {
+      const tutor = await lookupProfile(tutorCode);
+      if (!tutor || tutor.user_role !== 'adulto') {
+        Alert.alert('Error', 'El código de tutor no es válido. Debe ser el teléfono de un adulto registrado.');
+        return;
+      }
+      tutorUuid = tutor.user_id;
+    }
     const fullPhone = selectedCountry.code + phone.replace(/[^0-9]/g, '');
-    const result = register({ nombre, apellido, email, alias, phone: fullPhone, fechaNac, age: ageNum, password, tutorCode, referralCode });
+    const result = await register({ nombre, apellido, email, alias, phone: fullPhone, fechaNac, age: ageNum, password, tutorCode: tutorUuid, referralCode });
     if (!result.success) {
       Alert.alert('Error', result.errors.join('\n'));
     }
@@ -269,10 +293,11 @@ export default function RegisterScreen({ navigation }) {
   if (step === 'phone') {
     return (
 <LinearGradient colors={['#FFFFFF', '#FFD699', '#C06000']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={styles.container}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
       <View style={{ alignItems: 'center', paddingTop: 50 }}>
         <SvgXml xml={LOGO_SVG} width={343} height={68} />
       </View>
-      <ScrollView style={styles.phoneContainer} contentContainerStyle={[styles.content, { justifyContent: 'flex-start', paddingTop: 60 }]}>
+      <ScrollView style={styles.phoneContainer} contentContainerStyle={[styles.content, { justifyContent: 'flex-start', paddingTop: 60 }]} keyboardShouldPersistTaps="handled">
           <Text style={styles.title}>¡Bienvenid@!</Text>
           <Text style={styles.subtitle}>Verificá tu celular</Text>
           <Text style={styles.hint}>Te enviaremos un código SMS</Text>
@@ -344,13 +369,15 @@ export default function RegisterScreen({ navigation }) {
           <Text style={styles.link}>Volver</Text>
         </TouchableOpacity>
         </ScrollView>
+      </KeyboardAvoidingView>
       </LinearGradient>
     );
   }
 
   return (
     <LinearGradient colors={['#FFFFFF', '#FFD699', '#C06000']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={styles.container}>
-      <ScrollView style={styles.profileContainer} contentContainerStyle={[styles.content, styles.profileContent]}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+      <ScrollView style={styles.profileContainer} contentContainerStyle={[styles.content, styles.profileContent]} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Completá tu perfil</Text>
       <Text style={styles.subtitle}>Tus datos personales</Text>
 
@@ -424,6 +451,9 @@ export default function RegisterScreen({ navigation }) {
       )}
       <View style={styles.pinRow}>
         <TextInput style={[styles.input, styles.pinInput]} placeholder="Repetir contraseña *" placeholderTextColor={Colors.textLight} autoCapitalize="none" secureTextEntry={!showPassword} value={confirmPassword} onChangeText={setConfirmPassword} />
+        <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(!showPassword)}>
+          <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={22} color={Colors.textLight} />
+        </TouchableOpacity>
       </View>
       {confirmPassword.length > 0 && confirmPassword !== password && (
         <Text style={[styles.passwordHintText, { marginBottom: 12 }]}>✗ Las contraseñas no coinciden</Text>
@@ -475,6 +505,7 @@ export default function RegisterScreen({ navigation }) {
         <Text style={styles.link}>Volver</Text>
       </TouchableOpacity>
       </ScrollView>
+      </KeyboardAvoidingView>
     </LinearGradient>
   );
 }

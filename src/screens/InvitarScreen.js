@@ -17,14 +17,15 @@ export default function InvitarScreen({ navigation, route }) {
 
   useEffect(() => {
     if (!route.params?.fromDrawer) return;
+    const target = currentUser?.role === 'menor' ? 'DashboardMenor' : 'DashboardAdulto';
     const unsub = navigation.addListener('beforeRemove', (e) => {
       if (e.data.action.type === 'GO_BACK' || e.data.action.type === 'POP') {
         e.preventDefault();
-        navigation.navigate('DashboardAdulto', { openDrawer: true });
+        navigation.navigate(target, { openDrawer: true });
       }
     });
     return unsub;
-  }, [navigation, route.params?.fromDrawer]);
+  }, [navigation, route.params?.fromDrawer, currentUser?.role]);
 
   const referralCode = getReferralCode(currentUser?.id);
   const invites = getInvites(currentUser?.id);

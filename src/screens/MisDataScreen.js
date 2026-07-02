@@ -38,14 +38,15 @@ export default function MisDataScreen({ navigation, route }) {
 
   useEffect(() => {
     if (!route.params?.fromDrawer) return;
+    const target = currentUser?.role === 'menor' ? 'DashboardMenor' : 'DashboardAdulto';
     const unsub = navigation.addListener('beforeRemove', (e) => {
       if (e.data.action.type === 'GO_BACK' || e.data.action.type === 'POP') {
         e.preventDefault();
-        navigation.navigate('DashboardAdulto', { openDrawer: true });
+        navigation.navigate(target, { openDrawer: true });
       }
     });
     return unsub;
-  }, [navigation, route.params?.fromDrawer]);
+  }, [navigation, route.params?.fromDrawer, currentUser?.role]);
 
   return (
     <LinearGradient colors={['#FFFFFF', '#FFD699', '#C06000']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={styles.container}>

@@ -112,7 +112,7 @@ export default function CrearMenorScreen({ navigation }) {
     setPassword(text);
   };
 
-  const handleCrear = () => {
+  const handleCrear = async () => {
     if (!nombre || !apellido || !alias || !fechaNac || !email || !phone || !password || !confirmPassword) {
       Alert.alert('Error', 'Completá todos los campos');
       return;
@@ -165,7 +165,7 @@ export default function CrearMenorScreen({ navigation }) {
       Alert.alert('Error', 'Correo electrónico ya registrado');
       return;
     }
-    const result = registerChild({ nombre, apellido, email, alias, phone: fullPhone, age: ageNum, fechaNac, password });
+    const result = await registerChild({ nombre, apellido, email, alias, phone: fullPhone, age: ageNum, fechaNac, password });
     if (!result.success) {
       Alert.alert('Error', result.errors.join('\n'));
     } else {
