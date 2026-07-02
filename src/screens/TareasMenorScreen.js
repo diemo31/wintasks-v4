@@ -3,6 +3,7 @@ import { View, Text, Image, TouchableOpacity, StyleSheet, ScrollView, Dimensions
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme';
 import { useGlobal } from '../context/GlobalContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 const MONTHS_FULL = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
@@ -15,6 +16,17 @@ const formatExpiry = (iso) => {
 
 export default function TareasMenorScreen({ navigation }) {
   const { currentUser, getTasksForChild, expireOverdueTasks, taskPhotos } = useGlobal();
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <TouchableOpacity onPress={() => navigation.navigate('DashboardMenor', { openDrawer: true })} style={{ paddingLeft: insets.left + 12 }}>
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, insets]);
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [selMonth, setSelMonth] = useState(now.getMonth() + 1);

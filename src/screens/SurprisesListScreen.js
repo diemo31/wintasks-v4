@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme';
 import { useGlobal } from '../context/GlobalContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const STATUS_MAP = {
   sent: { label: 'Sin abrir', icon: 'mail-unread', color: '#D4721A' },
@@ -18,6 +19,17 @@ function formatDate(iso) {
 
 export default function SurprisesListScreen({ navigation }) {
   const { currentUser, getSurprisesForChild } = useGlobal();
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <TouchableOpacity onPress={() => navigation.navigate('DashboardMenor', { openDrawer: true })} style={{ paddingLeft: insets.left + 12 }}>
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, insets]);
   const surprises = getSurprisesForChild(currentUser.id, currentUser.tutorId);
 
   const personal = surprises.filter(s => s.childId === currentUser.id);
