@@ -11,6 +11,7 @@ import DashboardAdultoScreen from './src/screens/DashboardAdultoScreen';
 import DashboardMenorScreen from './src/screens/DashboardMenorScreen';
 import CreateTaskScreen from './src/screens/CreateTaskScreen';
 import TareasEnCursoScreen from './src/screens/TareasEnCursoScreen';
+import TareasMenorScreen from './src/screens/TareasMenorScreen';
 import MisDataScreen from './src/screens/MisDataScreen';
 import CambiarNumeroScreen from './src/screens/CambiarNumeroScreen';
 import CambiarClaveScreen from './src/screens/CambiarClaveScreen';
@@ -21,15 +22,20 @@ import MejorPrecioScreen from './src/screens/MejorPrecioScreen';
 import OpcionesScreen from './src/screens/OpcionesScreen';
 import CreateSurpriseScreen from './src/screens/CreateSurpriseScreen';
 import SorpresaRevealScreen from './src/screens/SorpresaRevealScreen';
+import SurprisesListScreen from './src/screens/SurprisesListScreen';
+import MisPuntosMenorScreen from './src/screens/MisPuntosMenorScreen';
+import MiCuentaTokensMenorScreen from './src/screens/MiCuentaTokensMenorScreen';
 import PremiosScreen from './src/screens/PremiosScreen';
 import PremiosMenorScreen from './src/screens/PremiosMenorScreen';
 import CreatePrizeScreen from './src/screens/CreatePrizeScreen';
 import TokensScreen from './src/screens/TokensScreen';
 import MiCuentaTokensScreen from './src/screens/MiCuentaTokensScreen';
 import HijosScreen from './src/screens/HijosScreen';
+import CrearMenorScreen from './src/screens/CrearMenorScreen';
 import ToDoScreen from './src/screens/ToDoScreen';
 import TaskProgressScreen from './src/screens/TaskProgressScreen';
 import TransferirScreen from './src/screens/TransferirScreen';
+import ScoreScreen from './src/screens/ScoreScreen';
 import { Colors } from './src/theme';
 
 const Stack = createNativeStackNavigator();
@@ -84,17 +90,22 @@ function AppNavigator() {
           <Stack.Screen name="Tokens" component={TokensScreen} options={{ title: 'Comprar tokens' }} />
           <Stack.Screen name="MiCuentaTokens" component={MiCuentaTokensScreen} options={{ title: 'Mi cuenta de tokens' }} />
           <Stack.Screen name="Hijos" component={HijosScreen} options={{ title: 'Mis hijos' }} />
+          <Stack.Screen name="CrearMenor" component={CrearMenorScreen} options={{ title: 'Crear menor' }} />
           <Stack.Screen name="ToDo" component={ToDoScreen} options={{ title: 'To do' }} />
         </Stack.Group>
       ) : (
         <Stack.Group>
           <Stack.Screen name="DashboardMenor" component={DashboardMenorScreen} options={{ headerShown: false }} />
-          <Stack.Screen name="TareasMenor" component={TareasEnCursoScreen} options={{ title: 'Mis tareas' }} />
+          <Stack.Screen name="TareasMenor" component={TareasMenorScreen} options={{ title: 'Mis tareas' }} />
           <Stack.Screen name="TaskProgress" component={TaskProgressScreen} options={{ title: 'Tarea' }} />
           <Stack.Screen name="ToDo" component={ToDoScreen} options={{ title: 'To do' }} />
           <Stack.Screen name="PremiosMenor" component={PremiosMenorScreen} options={{ title: 'Premios' }} />
           <Stack.Screen name="Transferir" component={TransferirScreen} options={{ title: 'Transferir' }} />
+          <Stack.Screen name="SurprisesList" component={SurprisesListScreen} options={{ title: 'Sorpresas' }} />
           <Stack.Screen name="SorpresaReveal" component={SorpresaRevealScreen} options={{ headerShown: false, animation: 'fade' }} />
+          <Stack.Screen name="MisPuntosMenor" component={MisPuntosMenorScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="Score" component={ScoreScreen} options={{ headerShown: false }} />
+          <Stack.Screen name="MiCuentaTokensMenor" component={MiCuentaTokensMenorScreen} options={{ title: 'Mi cuenta de tokens' }} />
         </Stack.Group>
       )}
     </Stack.Navigator>

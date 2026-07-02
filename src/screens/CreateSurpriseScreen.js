@@ -206,6 +206,7 @@ export default function CreateSurpriseScreen({ navigation }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [childId, setChildId] = useState('');
+  const [forAll, setForAll] = useState(false);
   const [tokenReward, setTokenReward] = useState('');
   const [expDate, setExpDate] = useState('');
   const [icon, setIcon] = useState('gift');
@@ -216,7 +217,7 @@ export default function CreateSurpriseScreen({ navigation }) {
   const [cropTarget, setCropTarget] = useState(null);
   const [cropUri, setCropUri] = useState(null);
 
-  const isValid = title.trim() && childId && tokenReward && Number(tokenReward) > 0;
+  const isValid = title.trim() && (forAll || childId) && tokenReward && Number(tokenReward) > 0;
   const getChildName = (id) => children.find(c => c.id === id)?.alias || '—';
 
   const pickAndCrop = async (target) => {
@@ -251,12 +252,14 @@ export default function CreateSurpriseScreen({ navigation }) {
     if (!isValid) return;
     createAndSendSurprise({
       title: title.trim(), description: description.trim(),
-      childId, tokenReward: Number(tokenReward), createdBy: currentUser.id,
+      childId: forAll ? currentUser.id : childId,
+      tokenReward: Number(tokenReward), createdBy: currentUser.id,
       icon: icon || 'gift', bgColor, expirationDate: parseDate(expDate),
       bgImageUri: bgImageUri || null,
       iconImageUri: iconImageUri || null,
+      forAll,
     });
-    setTitle(''); setDescription(''); setChildId(''); setTokenReward('');
+    setTitle(''); setDescription(''); setChildId(''); setForAll(false); setTokenReward('');
     setExpDate(''); setIcon('gift'); setBgColor('#2D1B69');
     setBgImageUri(null); setIconImageUri(null);
   };
@@ -314,7 +317,10 @@ export default function CreateSurpriseScreen({ navigation }) {
         <TextInput style={[styles.input, styles.textArea]} placeholder="Contale de qué se trata..." value={description} onChangeText={setDescription} multiline placeholderTextColor="#BBB" />
 
         <Text style={styles.label}>Para</Text>
-        {children.length === 0 ? (
+        <TouchableOpacity style={[styles.chip, forAll && styles.chipActive, { alignSelf: 'flex-start', marginBottom: 8 }]} onPress={() => { setForAll(!forAll); if (!forAll) setChildId(''); }}>
+          <Text style={[styles.chipText, forAll && styles.chipTextActive]}>Todos los chicos</Text>
+        </TouchableOpacity>
+        {!forAll && (children.length === 0 ? (
           <Text style={styles.noChildren}>No tenés hijos vinculados</Text>
         ) : (
           <View style={styles.chipRow}>
@@ -328,7 +334,7 @@ export default function CreateSurpriseScreen({ navigation }) {
               </TouchableOpacity>
             ))}
           </View>
-        )}
+        ))}
 
         <View style={styles.row}>
           <View style={styles.halfField}>

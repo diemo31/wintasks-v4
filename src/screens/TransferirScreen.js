@@ -18,7 +18,7 @@ const COUNTRIES = [
 const stripPhone = (str) => str.replace(/[\s\-\(\)\+]/g, '');
 
 export default function TransferirScreen({ navigation }) {
-  const { currentUser, users, getUserTokens, getUserLoyaltyPoints, moveTokens, moveLoyaltyPoints } = useGlobal();
+  const { currentUser, users, getUserTokens, getUserLoyaltyPoints, transferTokens, moveTokens, moveLoyaltyPoints } = useGlobal();
   const [countryIdx, setCountryIdx] = useState(0);
   const [showCountries, setShowCountries] = useState(false);
   const [phone, setPhone] = useState('');
@@ -61,29 +61,100 @@ export default function TransferirScreen({ navigation }) {
       return;
     }
 
-    Alert.alert(
-      'Confirmar transferencia',
-      `Vas a transferir ${val} ${type === 'tokens' ? 'tokens' : 'puntos'} a ${recipient.alias}.\n\nRevisá la transacción con cuidado porque si transferís mal, no puede revertirse.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Transferir',
-          style: 'destructive',
-          onPress: () => {
-            const ok = type === 'tokens'
-              ? moveTokens(currentUser.id, recipient.id, val)
-              : moveLoyaltyPoints(currentUser.id, recipient.id, val);
-            if (ok) {
-              Alert.alert('Transferido', `Se transfirieron ${val} ${type === 'tokens' ? 'tokens' : 'puntos'} a ${recipient.alias}.`, [
-                { text: 'OK', onPress: () => navigation.goBack() },
-              ]);
-            } else {
-              Alert.alert('Error', 'No se pudo completar la transferencia');
-            }
-          },
-        },
-      ]
-    );
+    const isFromChild = currentUser.role === 'menor';
+    const isToAdult = recipient.role === 'adulto';
+    const isToChild = recipient.role === 'menor';
+    const isFromAdult = currentUser.role === 'adulto';
+
+    // Minor→Adult: only tutor allowed
+    if (isFromChild && isToAdult && recipient.id !== currentUser.tutorId) {
+      Alert.alert('Error', 'Solo podés transferir tokens a tu tutor.');
+      return;
+    }
+
+    const confirmAndTransfer = () => {
+      if (type === 'puntos') {
+        const ok = moveLoyaltyPoints(currentUser.id, recipient.id, val);
+        if (ok) {
+          Alert.alert('Transferido', `Se transfirieron ${val} puntos a ${recipient.alias}.`, [
+            { text: 'OK', onPress: () => navigation.goBack() },
+          ]);
+        } else {
+          Alert.alert('Error', 'No se pudo completar la transferencia de puntos');
+        }
+        return;
+      }
+
+      let expiryMode = 'all';
+      let lockTokens = false;
+
+      if (isFromChild && isToAdult) {
+        // Minor→Adult tutor: only valid non-transfer tokens
+        expiryMode = 'transfer';
+      } else if (isFromAdult && isToChild) {
+        // Adult→Minor: lock if not own child
+        const isOwnChild = currentUser.id === recipient.tutorId;
+        if (!isOwnChild) lockTokens = true;
+      }
+      // Minor→Minor falls through (all, fromChildTransfer=true via isCrossChild)
+      // Adult→Adult falls through (all, no lock)
+
+      const result = transferTokens(currentUser.id, recipient.id, val, expiryMode, lockTokens);
+
+      const goBack = () => navigation.goBack();
+
+      if (isToAdult && (result.transferred > 0 || result.expiredSkipped > 0 || result.transferSkipped > 0)) {
+        const parts = [];
+        if (result.transferred > 0) parts.push(`Se transfirieron ${result.transferred} tokens a ${recipient.alias}.`);
+        if (result.expiredSkipped > 0) parts.push(`${result.expiredSkipped} tokens estaban vencidos y no se transfirieron.`);
+        if (result.transferSkipped > 0) parts.push(`${result.transferSkipped} tokens provenían de transferencias y no pueden transferirse a un adulto.`);
+        Alert.alert('Transferencia', parts.join(' '), [{ text: 'OK', onPress: result.transferred > 0 ? goBack : undefined }]);
+        if (result.transferred <= 0) return;
+        goBack();
+
+      } else if (isToChild && isFromChild && result.transferred > 0) {
+        // Minor→Minor: tiered messages
+        const msgs = [];
+        if (result.transferredExpired > 0) {
+          msgs.push(`${result.transferredExpired} tokens ya estaban vencidos y no se recuperan una vez que ${recipient.alias} los canjee.`);
+        }
+        if (result.transferredValid > 0) {
+          msgs.push(`${result.transferredValid} tokens estaban vigentes pero al transferirlos a otro menor pierden su vigencia y no pueden recuperarse.`);
+        }
+        Alert.alert('Transferencia completada', msgs.join('\n\n') + '\n\nRevisá la transacción con cuidado porque no puede revertirse.', [
+          { text: 'OK', onPress: goBack },
+        ]);
+
+      } else if (result.transferred > 0) {
+        Alert.alert('Transferido', `Se transfirieron ${result.transferred} tokens a ${recipient.alias}.`, [
+          { text: 'OK', onPress: goBack },
+        ]);
+
+      } else if (result.expiredSkipped > 0 || result.transferSkipped > 0) {
+        const parts = [];
+        if (result.expiredSkipped > 0) parts.push('vencidos');
+        if (result.transferSkipped > 0) parts.push('de transferencias');
+        Alert.alert('Error', `Todos los tokens están ${parts.join(' o ')} y no pueden transferirse a un adulto.`);
+
+      } else {
+        Alert.alert('Error', 'No se pudo completar la transferencia');
+      }
+    };
+
+    const msgParts = [`Vas a transferir ${val} tokens a ${recipient.alias} (${recipient.role === 'adulto' ? 'adulto' : 'menor'}).`];
+    if (isFromChild && isToAdult) {
+      msgParts.push('Los tokens vencidos o provenientes de transferencias no se transferirán.');
+    } else if (isFromChild && isToChild) {
+      msgParts.push('Al transferir a otro menor, los tokens pierden su vigencia y no pueden recuperarse.');
+    } else if (isFromAdult && isToChild && currentUser.id !== recipient.tutorId) {
+      msgParts.push('Como no sos su tutor, estos tokens no podrán volver a tu cuenta.');
+    }
+    msgParts.push('Revisá la transacción con cuidado porque no puede revertirse.');
+
+    Alert.alert('Confirmar transferencia', msgParts.join('\n\n'), [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Transferir', style: 'destructive', onPress: confirmAndTransfer },
+    ]);
   };
 
   return (

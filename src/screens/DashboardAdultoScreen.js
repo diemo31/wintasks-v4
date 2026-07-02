@@ -305,6 +305,10 @@ export default function DashboardAdultoScreen({ navigation, route }) {
               <Text style={styles.drawerItemText}>Cambiar clave</Text>
             </TouchableOpacity>
             <View style={styles.drawerDivider} />
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { toggleDrawer(false); navigation.navigate('CrearMenor'); }}>
+              <Ionicons name="person-add-outline" size={22} color="#334155" style={styles.drawerItemIcon} />
+              <Text style={styles.drawerItemText}>Crear menor</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.drawerItem} onPress={() => { toggleDrawer(false); navigation.navigate('Membresia', { fromDrawer: true }); }}>
               <Ionicons name="card-outline" size={22} color="#334155" style={styles.drawerItemIcon} />
               <Text style={styles.drawerItemText}>Membresía</Text>

@@ -32,7 +32,7 @@ const TASK_EXPIRY_DAYS = 7;
 const now = new Date();
 const exp6 = new Date(now.getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString();
 const INITIAL_TOKEN_BATCHES = [
-  { id: 'b1', userId: '1', amount: 200, remaining: 200, source: 'signup', acquiredAt: now.toISOString(), expiresAt: exp6 },
+  { id: 'b1', userId: '1', amount: 200, remaining: 167, source: 'signup', acquiredAt: now.toISOString(), expiresAt: exp6 },
   { id: 'b2', userId: '2', amount: 50, remaining: 50, source: 'signup', acquiredAt: now.toISOString(), expiresAt: exp6 },
   { id: 'b3', userId: '2', amount: 10, remaining: 10, source: 'task_reward', acquiredAt: '2026-05-12T18:00:00Z', expiresAt: new Date(new Date('2026-05-12T18:00:00Z').getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() },
   { id: 'b4', userId: '2', amount: 15, remaining: 15, source: 'task_reward', acquiredAt: '2026-05-07T12:00:00Z', expiresAt: new Date(new Date('2026-05-07T12:00:00Z').getTime() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() },
@@ -105,10 +105,11 @@ export function GlobalProvider({ children }) {
   const [prizes, setPrizes] = useState([]);
   const [todoLists, setTodoLists] = useState([]);
   const [taskPhotos, setTaskPhotos] = useState({});
+  const [scoreGoals, setScoreGoals] = useState({});
   const [loaded, setLoaded] = useState(false);
   const saveTimer = useRef(null);
 
-  const STORAGE_KEYS = ['users', 'tokenBatches', 'tasks', 'memberships', 'invites', 'loyaltyPoints', 'loyaltyHistory', 'surprises', 'prizes', 'todoLists', 'taskPhotos'];
+  const STORAGE_KEYS = ['users', 'tokenBatches', 'tasks', 'memberships', 'invites', 'loyaltyPoints', 'loyaltyHistory', 'surprises', 'prizes', 'todoLists', 'taskPhotos', 'scoreGoals'];
 
   const stateMap = {
     users: [users, setUsers],
@@ -122,6 +123,7 @@ export function GlobalProvider({ children }) {
     prizes: [prizes, setPrizes],
     todoLists: [todoLists, setTodoLists],
     taskPhotos: [taskPhotos, setTaskPhotos],
+    scoreGoals: [scoreGoals, setScoreGoals],
   };
 
   const isEmpty = (val) => {
@@ -139,7 +141,7 @@ export function GlobalProvider({ children }) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => saveAll(), 500);
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
-  }, [users, tokenBatches, tasks, memberships, invites, loyaltyPoints, loyaltyHistory, surprises, prizes, todoLists, taskPhotos, loaded]);
+  }, [users, tokenBatches, tasks, memberships, invites, loyaltyPoints, loyaltyHistory, surprises, prizes, todoLists, taskPhotos, scoreGoals, loaded]);
 
   const saveAll = async () => {
     try {
@@ -171,6 +173,20 @@ export function GlobalProvider({ children }) {
         const existingIds = new Set(prev.map(t => t.id));
         const missing = INITIAL_TASKS.filter(t => !existingIds.has(t.id));
         return missing.length > 0 ? [...prev, ...missing] : prev;
+      });
+      // ensure INITIAL_TOKEN_BATCHES are up to date (overwrite demo ids only)
+      setTokenBatches(prev => {
+        const initialMap = {};
+        for (const b of INITIAL_TOKEN_BATCHES) initialMap[b.id] = b;
+        let changed = false;
+        const merged = prev.map(b => {
+          if (initialMap[b.id]) { changed = true; return { ...initialMap[b.id] }; }
+          return b;
+        });
+        for (const b of INITIAL_TOKEN_BATCHES) {
+          if (!prev.some(p => p.id === b.id)) { changed = true; merged.push(b); }
+        }
+        return changed ? merged : prev;
       });
       // ensure INITIAL_MEMBERSHIPS keys are present
       setMemberships(prev => {
@@ -249,6 +265,23 @@ export function GlobalProvider({ children }) {
     return { success: true, user: newUser };
   }, [users]);
 
+  const registerChild = useCallback(({ nombre, apellido, email, alias, phone, age, fechaNac, password }) => {
+    const passwordErrors = getPasswordErrors(password);
+    if (passwordErrors.length > 0) return { success: false, errors: passwordErrors };
+    const newUser = {
+      id: String(Date.now()),
+      nombre, apellido, email, alias,
+      phone,
+      age: Number(age),
+      fechaNac,
+      password,
+      role: 'menor',
+      tutorId: currentUser?.id || null,
+    };
+    setUsers(prev => [...prev, newUser]);
+    return { success: true, user: newUser };
+  }, [currentUser]);
+
   const updatePhone = useCallback((userId, newPhone) => {
     setUsers(prev => prev.map(u => u.id === userId ? { ...u, phone: newPhone } : u));
     setCurrentUser(prev => prev?.id === userId ? { ...prev, phone: newPhone } : prev);
@@ -277,8 +310,9 @@ export function GlobalProvider({ children }) {
     return users.filter(u => u.role === 'menor' && u.tutorId === adultId);
   }, [users]);
 
-  const addTokens = useCallback((userId, amount, source = 'generic', expiryMonths) => {
-    const months = expiryMonths || EXPIRY_MONTHS;
+  const addTokens = useCallback((userId, amount, source = 'generic', expiresAt) => {
+    if (expiresAt && new Date(expiresAt) <= new Date()) return null;
+    const exp = expiresAt || new Date(Date.now() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString();
     const batch = {
       id: String(Date.now()) + String(Math.random()).slice(2, 8),
       userId,
@@ -286,37 +320,158 @@ export function GlobalProvider({ children }) {
       remaining: amount,
       source,
       acquiredAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + months * 30 * 24 * 60 * 60 * 1000).toISOString(),
+      expiresAt: exp,
     };
     setTokenBatches(prev => [...prev, batch]);
     return batch;
   }, []);
 
   const deductTokens = useCallback((userId, amount) => {
-    let remaining = amount;
+    const deductions = [];
     setTokenBatches(prev => {
+      const now = new Date();
       const sorted = prev
-        .filter(b => b.userId === userId && b.remaining > 0 && new Date(b.expiresAt) > new Date())
-        .sort((a, b) => new Date(a.expiresAt) - new Date(b.expiresAt) || new Date(a.acquiredAt) - new Date(b.acquiredAt));
-      const updatedIds = new Set();
+        .filter(b => b.userId === userId && b.remaining > 0 && new Date(b.expiresAt) > now)
+        .sort((a, b) => {
+          const aTransfer = a.fromChildTransfer ? 1 : 0;
+          const bTransfer = b.fromChildTransfer ? 1 : 0;
+          if (bTransfer - aTransfer !== 0) return bTransfer - aTransfer;
+          return new Date(a.expiresAt) - new Date(b.expiresAt) || new Date(a.acquiredAt) - new Date(b.acquiredAt);
+        });
+      let rem = amount;
+      const updates = [];
       for (const batch of sorted) {
-        if (remaining <= 0) break;
-        const deduct = Math.min(remaining, batch.remaining);
-        batch.remaining -= deduct;
-        remaining -= deduct;
-        updatedIds.add(batch.id);
+        if (rem <= 0) break;
+        const deduct = Math.min(rem, batch.remaining);
+        rem -= deduct;
+        deductions.push({ batchId: batch.id, amount: deduct, expiresAt: batch.expiresAt });
+        updates.push({ batch, deduct });
       }
-      if (remaining > 0) return prev;
-      return prev.map(b => updatedIds.has(b.id) ? { ...b, remaining: b.remaining } : b);
+      if (rem > 0) { deductions.length = 0; return prev; }
+      return prev.map(b => {
+        const upd = updates.find(u => u.batch.id === b.id);
+        return upd ? { ...b, remaining: b.remaining - upd.deduct } : b;
+      });
     });
-    return remaining === 0;
+    return deductions;
+  }, []);
+
+  const transferTokens = useCallback((fromUserId, toUserId, amount, expiryMode = 'transfer', lockTokens = false) => {
+    const fromUser = users.find(u => u.id === fromUserId);
+    const toUser = users.find(u => u.id === toUserId);
+    const isCrossChild = fromUser?.role === 'menor' && toUser?.role === 'menor';
+    const neverReturn = isCrossChild || lockTokens;
+    let transferred = 0;
+    let transferredExpired = 0;
+    let expiredLost = 0;
+    let transferLost = 0;
+    let expiredSkipped = 0;
+    let transferSkipped = 0;
+    setTokenBatches(prev => {
+      const now = new Date();
+      const sourceBatches = prev
+        .filter(b => b.userId === fromUserId && b.remaining > 0)
+        .sort((a, b) => {
+          if (isCrossChild || lockTokens) {
+            const aT = a.fromChildTransfer ? 1 : 0;
+            const bT = b.fromChildTransfer ? 1 : 0;
+            if (bT - aT !== 0) return bT - aT;
+          }
+          return new Date(a.expiresAt) - new Date(b.expiresAt) || new Date(a.acquiredAt) - new Date(b.acquiredAt);
+        });
+      let rem = amount;
+      const updates = [];
+      const newBatches = [];
+      for (const batch of sourceBatches) {
+        if (rem <= 0) break;
+        const isExpired = new Date(batch.expiresAt) <= now;
+        if (expiryMode === 'transfer' && (isExpired || batch.fromChildTransfer)) {
+          if (isExpired) expiredSkipped += batch.remaining;
+          else transferSkipped += batch.remaining;
+          continue;
+        }
+        const deduct = Math.min(rem, batch.remaining);
+        rem -= deduct;
+        updates.push({ batch, deduct });
+        if (expiryMode === 'consume' && (isExpired || batch.fromChildTransfer)) {
+          if (isExpired) expiredLost += deduct;
+          else transferLost += deduct;
+          continue;
+        }
+        transferred += deduct;
+        if (isExpired) transferredExpired += deduct;
+        newBatches.push({
+          id: String(Date.now()) + String(Math.random()).slice(2, 8),
+          userId: toUserId,
+          amount: deduct,
+          remaining: deduct,
+          source: 'transfer',
+          acquiredAt: new Date().toISOString(),
+          expiresAt: batch.expiresAt,
+          ...(neverReturn ? { fromChildTransfer: true } : {}),
+        });
+      }
+      return [
+        ...prev.map(b => {
+          const upd = updates.find(u => u.batch.id === b.id);
+          return upd ? { ...b, remaining: b.remaining - upd.deduct } : b;
+        }),
+        ...newBatches,
+      ];
+    });
+    const totalLost = expiredLost + transferLost;
+    return {
+      success: amount - transferred - totalLost <= 0,
+      transferred, transferredExpired, transferredValid: transferred - transferredExpired,
+      expiredLost, transferLost,
+      expiredSkipped, transferSkipped,
+      remaining: Math.max(0, amount - transferred - totalLost),
+    };
+  }, [users]);
+
+  const spendTokens = useCallback((userId, amount) => {
+    let spent = 0;
+    let expiredLost = 0;
+    let transferLost = 0;
+    setTokenBatches(prev => {
+      const now = new Date();
+      const sorted = prev
+        .filter(b => b.userId === userId && b.remaining > 0)
+        .sort((a, b) => {
+          const aTransfer = a.fromChildTransfer ? 1 : 0;
+          const bTransfer = b.fromChildTransfer ? 1 : 0;
+          if (bTransfer - aTransfer !== 0) return bTransfer - aTransfer;
+          return new Date(a.expiresAt) - new Date(b.expiresAt) || new Date(a.acquiredAt) - new Date(b.acquiredAt);
+        });
+      let rem = amount;
+      const updates = [];
+      for (const batch of sorted) {
+        if (rem <= 0) break;
+        const deduct = Math.min(rem, batch.remaining);
+        rem -= deduct;
+        updates.push({ batch, deduct });
+        const isExpired = new Date(batch.expiresAt) <= now;
+        if (isExpired) expiredLost += deduct;
+        else if (batch.fromChildTransfer) transferLost += deduct;
+        else spent += deduct;
+      }
+      return prev.map(b => {
+        const upd = updates.find(u => u.batch.id === b.id);
+        return upd ? { ...b, remaining: b.remaining - upd.deduct } : b;
+      });
+    });
+    const totalLost = expiredLost + transferLost;
+    return { success: amount - spent - totalLost <= 0, spent, expiredLost, transferLost, remaining: Math.max(0, amount - spent - totalLost) };
   }, []);
 
   const moveTokens = useCallback((fromUserId, toUserId, amount) => {
-    const success = deductTokens(fromUserId, amount);
-    if (success) addTokens(toUserId, amount, 'transfer');
-    return success;
-  }, [deductTokens, addTokens]);
+    const toUser = users.find(u => u.id === toUserId);
+    const isToAdult = toUser?.role === 'adulto';
+    const fromIsChild = users.find(u => u.id === fromUserId)?.role === 'menor';
+    const expiryMode = isToAdult && fromIsChild ? 'transfer' : 'all';
+    const result = transferTokens(fromUserId, toUserId, amount, expiryMode);
+    return result.success;
+  }, [transferTokens, users]);
 
   const moveLoyaltyPoints = useCallback((fromUserId, toUserId, amount) => {
     const current = loyaltyPoints[fromUserId] || 0;
@@ -335,10 +490,11 @@ export function GlobalProvider({ children }) {
 
   const createTask = useCallback(({ title, description, childId, tokenReward, createdBy, expiresAt }) => {
     const reward = Number(tokenReward);
-    const deducted = deductTokens(createdBy, reward);
-    if (!deducted) return null;
+    const deductions = deductTokens(createdBy, reward);
+    if (deductions.length === 0) return null;
+    const taskId = String(Date.now());
     const task = {
-      id: String(Date.now()),
+      id: taskId,
       title,
       description,
       childId,
@@ -347,6 +503,7 @@ export function GlobalProvider({ children }) {
       status: 'pending',
       createdAt: new Date().toISOString(),
       expiresAt: expiresAt || new Date(Date.now() + TASK_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+      _tokenSource: deductions,
     };
     setTasks(prev => [...prev, task]);
     return task;
@@ -394,7 +551,22 @@ export function GlobalProvider({ children }) {
       return t;
     }));
     if (taskToApprove) {
-      addTokens(taskToApprove.childId, taskToApprove.tokenReward, 'task_reward');
+      const source = taskToApprove._tokenSource;
+      if (source && source.length > 0) {
+        const now = new Date();
+        const newBatches = source.map(d => ({
+          id: String(Date.now()) + String(Math.random()).slice(2, 8),
+          userId: taskToApprove.childId,
+          amount: d.amount,
+          remaining: d.amount,
+          source: 'task_reward',
+          acquiredAt: now.toISOString(),
+          expiresAt: d.expiresAt,
+        }));
+        setTokenBatches(prev => [...prev, ...newBatches]);
+      } else {
+        addTokens(taskToApprove.childId, taskToApprove.tokenReward, 'task_reward');
+      }
     }
   }, [addTokens]);
 
@@ -414,9 +586,27 @@ export function GlobalProvider({ children }) {
     const now = new Date();
     const overdue = tasks.filter(t => t.status === 'pending' && new Date(t.expiresAt) <= now);
     if (overdue.length === 0) return;
+    const newBatches = [];
     for (const task of overdue) {
-      addTokens(task.createdBy, task.tokenReward, 'expired_refund');
+      const source = task._tokenSource;
+      if (source && source.length > 0) {
+        for (const d of source) {
+          if (new Date(d.expiresAt) <= now) continue;
+          newBatches.push({
+            id: String(Date.now()) + String(Math.random()).slice(2, 8),
+            userId: task.createdBy,
+            amount: d.amount,
+            remaining: d.amount,
+            source: 'expired_refund',
+            acquiredAt: now.toISOString(),
+            expiresAt: d.expiresAt,
+          });
+        }
+      } else {
+        addTokens(task.createdBy, task.tokenReward, 'expired_refund');
+      }
     }
+    if (newBatches.length > 0) setTokenBatches(prev => [...prev, ...newBatches]);
     setTasks(prev => prev.map(t =>
       t.status === 'pending' && new Date(t.expiresAt) <= now ? { ...t, status: 'expired' } : t
     ));
@@ -596,7 +786,7 @@ export function GlobalProvider({ children }) {
     return entry;
   }, []);
 
-  const createAndSendSurprise = useCallback(({ title, description, childId, tokenReward, createdBy, icon, bgColor, expirationDate, bgImageUri, iconImageUri }) => {
+  const createAndSendSurprise = useCallback(({ title, description, childId, tokenReward, createdBy, icon, bgColor, expirationDate, bgImageUri, iconImageUri, forAll }) => {
     const surprise = {
       id: String(Date.now()),
       title, description, childId, createdBy,
@@ -606,6 +796,7 @@ export function GlobalProvider({ children }) {
       expirationDate: expirationDate || null,
       bgImageUri: bgImageUri || null,
       iconImageUri: iconImageUri || null,
+      forAll: forAll || false,
       status: 'sent',
       createdAt: new Date().toISOString(),
       sentAt: new Date().toISOString(),
@@ -618,8 +809,8 @@ export function GlobalProvider({ children }) {
     return surprises.filter(s => s.createdBy === adultId);
   }, [surprises]);
 
-  const getSurprisesForChild = useCallback((childId) => {
-    return surprises.filter(s => s.childId === childId);
+  const getSurprisesForChild = useCallback((childId, tutorId) => {
+    return surprises.filter(s => s.childId === childId || (s.forAll && s.createdBy === tutorId));
   }, [surprises]);
 
   const openSurprise = useCallback((surpriseId) => {
@@ -636,9 +827,10 @@ export function GlobalProvider({ children }) {
       return s;
     }));
     if (target) {
-      moveTokens(target.childId, target.createdBy, target.tokenReward);
+      return transferTokens(target.childId, target.createdBy, target.tokenReward, 'consume');
     }
-  }, [moveTokens]);
+    return null;
+  }, [transferTokens]);
 
   const createPrize = useCallback(({ title, description, tokenCost, createdBy }) => {
     const prize = {
@@ -681,11 +873,11 @@ export function GlobalProvider({ children }) {
     if (!prize) return { success: false, error: 'Premio no encontrado' };
     const child = users.find(u => u.id === childId);
     if (!child) return { success: false, error: 'Usuario no encontrado' };
-    const ok = deductTokens(childId, prize.tokenCost);
-    if (!ok) return { success: false, error: 'No tenés suficientes tokens' };
+    const result = spendTokens(childId, prize.tokenCost);
+    if (!result.success) return { success: false, error: 'No tenés suficientes tokens' };
     incrementPrizeUsed(prizeId);
-    return { success: true };
-  }, [prizes, users, deductTokens, incrementPrizeUsed]);
+    return { ...result, success: true };
+  }, [prizes, users, spendTokens, incrementPrizeUsed]);
 
   const createList = useCallback((name) => {
     const list = { id: String(Date.now()), name, items: [], completed: false, createdAt: new Date().toISOString() };
@@ -722,10 +914,29 @@ export function GlobalProvider({ children }) {
     setTodoLists(prev => prev.map(l => l.id === id ? { ...l, name } : l));
   }, []);
 
+  const setScoreGoal = useCallback((monthKey, goal) => {
+    if (goal === null || goal === undefined) {
+      setScoreGoals(prev => {
+        const next = { ...prev };
+        delete next[monthKey];
+        return next;
+      });
+    } else {
+      setScoreGoals(prev => ({
+        ...prev,
+        [monthKey]: Number(goal),
+      }));
+    }
+  }, []);
+
+  const getScoreGoal = useCallback((monthKey) => {
+    return scoreGoals[monthKey] ?? null;
+  }, [scoreGoals]);
+
   return (
     <GlobalContext.Provider value={{
-      loaded, users, currentUser, login, register, updatePhone, updatePassword, logout, getTutorName, getUserTokens, getChildren, addTokens, deductTokens, moveTokens, moveLoyaltyPoints,
-      tokenBatches, tasks, createTask, getTasksForAdult, getTasksForChild, startTask, completeTask, approveTask, rejectTask, redoTask, sendReminder, saveTaskPhoto, taskPhotos,
+      loaded, users, currentUser, login, register, registerChild, updatePhone, updatePassword, logout, getTutorName, getUserTokens, getChildren, addTokens, deductTokens, transferTokens, moveTokens, moveLoyaltyPoints,
+      tokenBatches, spendTokens, tasks, createTask, getTasksForAdult, getTasksForChild, startTask, completeTask, approveTask, rejectTask, redoTask, sendReminder, saveTaskPhoto, taskPhotos,
       expireOverdueTasks, getPendingTaskTokens, getPendingTasksWithDetails, getPurchaseHistory,
       memberships, requestMembership, markPaymentSent, verifyMembership, getUserMembership, getPendingVerifications,
       invites, getReferralCode, getInvites, getTokensFromInvites,
@@ -735,6 +946,7 @@ export function GlobalProvider({ children }) {
       surprises, createAndSendSurprise, getSurprisesForAdult, getSurprisesForChild, openSurprise, claimSurprise,
       prizes, createPrize, deletePrize, getAdultPrizes, incrementPrizeUsed, getPrizesForChild, redeemPrize,
       todoLists, createList, deleteList, markListCompleted, addListItem, toggleListItem, deleteListItem, renameList,
+      scoreGoals, setScoreGoal, getScoreGoal,
     }}>
       {children}
     </GlobalContext.Provider>

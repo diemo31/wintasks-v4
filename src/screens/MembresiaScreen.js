@@ -261,6 +261,9 @@ export default function MembresiaScreen({ navigation, route }) {
             ) : (
               <Text style={styles.totalArs}>Cotización no disponible</Text>
             )}
+            <Text style={styles.legalText}>
+              El monto en pesos es de referencia según el dólar MEP estimado del día. El cobro se realizará en USD a través de PayPal.
+            </Text>
             <TouchableOpacity
               style={[styles.paypalBtn, (creatingPayPalOrder || !selectedPlan) && { opacity: 0.5 }]}
               onPress={handlePayPalCreateOrder}
@@ -395,6 +398,10 @@ const styles = StyleSheet.create({
   totalArs: { fontSize: 14, fontWeight: '600', color: '#64748b', marginBottom: 14 },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 },
   loadingText: { fontSize: 12, color: '#94a3b8' },
+  legalText: {
+    fontSize: 10, color: '#94a3b8', textAlign: 'center',
+    marginBottom: 12, paddingHorizontal: 8, lineHeight: 14,
+  },
   errorText: { fontSize: 11, color: '#dc2626', textAlign: 'center', marginTop: 8 },
   paypalBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

@@ -14,6 +14,7 @@ export default function SorpresaRevealScreen({ navigation, route }) {
   const [revealed, setRevealed] = useState(false);
   const [claimed, setClaimed] = useState(false);
   const [insufficient, setInsufficient] = useState(false);
+  const [expiredWarning, setExpiredWarning] = useState(null);
   const scaleAnim = useRef(new Animated.Value(1)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const giftScale = useRef(new Animated.Value(1)).current;
@@ -59,8 +60,17 @@ export default function SorpresaRevealScreen({ navigation, route }) {
       setTimeout(() => setInsufficient(false), 3000);
       return;
     }
-    claimSurprise(surprise.id);
+    const result = claimSurprise(surprise.id);
     setClaimed(true);
+    if (result) {
+      const parts = [];
+      if (result.expiredLost > 0) parts.push(`${result.expiredLost} vencidos`);
+      if (result.transferLost > 0) parts.push(`${result.transferLost} de transferencias`);
+      if (parts.length > 0) {
+        setExpiredWarning(`${parts.join(' y ')} se perdieron en el canje.`);
+        setTimeout(() => setExpiredWarning(null), 5000);
+      }
+    }
     setTimeout(() => navigation.goBack(), 2000);
   };
 
@@ -131,6 +141,9 @@ export default function SorpresaRevealScreen({ navigation, route }) {
                   No tenés suficientes tokens. Te faltan {cost - myTokens}.
                 </Text>
               )}
+              {expiredWarning && (
+                <Text style={styles.expiredWarningText}>{expiredWarning}</Text>
+              )}
               <Text style={styles.balanceText}>Tu saldo: {myTokens} tokens</Text>
             </>
           ) : (
@@ -175,6 +188,7 @@ const styles = StyleSheet.create({
   claimBtnDisabled: { opacity: 0.5 },
   claimBtnText: { color: '#FFF', fontSize: 18, fontWeight: '700' },
   insufficientText: { color: '#FF6B6B', fontSize: 14, marginTop: 12, textAlign: 'center' },
+  expiredWarningText: { color: '#FFA500', fontSize: 13, marginTop: 8, textAlign: 'center', fontWeight: '600' },
   balanceText: { color: 'rgba(255,255,255,0.4)', fontSize: 13, marginTop: 12 },
   claimedBox: { alignItems: 'center', gap: 8 },
   claimedText: { color: Colors.success, fontSize: 18, fontWeight: '600' },

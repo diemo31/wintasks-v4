@@ -27,6 +27,8 @@ function formatExpiry(iso) {
   return `Vence en ${days} días (${formatDate(iso)})`;
 }
 
+const fmtARS = (n) => n ? `$${n.toLocaleString('es-AR')}` : '';
+
 const POLL_INTERVAL = 5000;
 const POLL_TIMEOUT = 300000;
 
@@ -41,6 +43,8 @@ export default function TokensScreen({ navigation }) {
   const [waitingPayPal, setWaitingPayPal] = useState(false);
   const [payPalError, setPayPalError] = useState(null);
   const [purchased, setPurchased] = useState(false);
+  const [mepRate, setMepRate] = useState(null);
+  const [loadingRate, setLoadingRate] = useState(true);
 
   const pollingRef = useRef(null);
 
@@ -48,6 +52,28 @@ export default function TokensScreen({ navigation }) {
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchMep = async () => {
+      try {
+        const res = await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares');
+        const data = await res.json();
+        if (!cancelled) {
+          const mep = data.find(d => d.casa === 'MEP');
+          if (mep?.venta) { setMepRate(mep.venta); setLoadingRate(false); return; }
+        }
+      } catch {}
+      try {
+        const res = await fetch('https://dolarapi.com/v1/dolares/bolsa');
+        const data = await res.json();
+        if (!cancelled && data?.venta) { setMepRate(data.venta); }
+      } catch {}
+      if (!cancelled) setLoadingRate(false);
+    };
+    fetchMep();
+    return () => { cancelled = true; };
   }, []);
 
   const handleSelectPack = (pack) => {
@@ -149,6 +175,7 @@ export default function TokensScreen({ navigation }) {
                 <Text style={styles.offerTokens}>{pack.tokens.toLocaleString()}</Text>
                 <Text style={styles.offerDesc}>{pack.desc}</Text>
                 <Text style={styles.offerPrice}>USD {pack.price.toFixed(2)}</Text>
+                {mepRate ? <Text style={styles.offerArs}>{fmtARS(Math.round(pack.price * mepRate))}</Text> : null}
                 <Text style={styles.offerExpiry}>{pack.expiryMonths} meses</Text>
               </TouchableOpacity>
             );
@@ -161,6 +188,17 @@ export default function TokensScreen({ navigation }) {
           <Text style={styles.purchaseTitle}>{selectedPack.label}</Text>
           <Text style={styles.purchaseTokens}>{selectedPack.tokens.toLocaleString()} tokens</Text>
           <Text style={styles.purchasePrice}>USD {selectedPack.price.toFixed(2)}</Text>
+          {mepRate ? (
+            <Text style={styles.purchaseArs}>{fmtARS(Math.round(selectedPack.price * mepRate))} ARS</Text>
+          ) : loadingRate ? (
+            <View style={styles.loadingRow}>
+              <ActivityIndicator size="small" color="#E88900" />
+              <Text style={styles.loadingText}>Cargando cotización...</Text>
+            </View>
+          ) : null}
+          <Text style={styles.legalText}>
+            El monto en pesos es de referencia según el dólar MEP estimado del día. El cobro se realizará en USD a través de PayPal.
+          </Text>
           <TouchableOpacity
             style={[styles.paypalBtn, creatingOrder && { opacity: 0.5 }]}
             onPress={handleCreateOrder}
@@ -198,7 +236,7 @@ export default function TokensScreen({ navigation }) {
             </View>
             <View style={styles.orderField}>
               <Text style={styles.orderLabel}>Monto</Text>
-              <Text style={styles.orderValue}>USD {selectedPack?.price.toFixed(2)}</Text>
+              <Text style={styles.orderValue}>USD {selectedPack?.price.toFixed(2)}{mepRate ? ` · ${fmtARS(Math.round(selectedPack.price * mepRate))}` : ''}</Text>
             </View>
             {payPalError && <Text style={styles.errorText}>{payPalError}</Text>}
             <TouchableOpacity style={[styles.cancelBtn, { marginTop: 12 }]} onPress={cancelPurchase}>
@@ -318,4 +356,12 @@ const styles = StyleSheet.create({
   historyRight: { alignItems: 'flex-end' },
   historyPlus: { fontSize: 16, fontWeight: '900', color: '#16a34a' },
   historyExpiry: { fontSize: 10, color: '#94a3b8', marginTop: 2 },
+  offerArs: { fontSize: 10, color: '#aaa', marginTop: 1 },
+  purchaseArs: { fontSize: 13, fontWeight: '600', color: '#64748b', marginBottom: 14 },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14 },
+  loadingText: { fontSize: 12, color: '#94a3b8' },
+  legalText: {
+    fontSize: 10, color: '#94a3b8', textAlign: 'center',
+    marginBottom: 12, paddingHorizontal: 8, lineHeight: 14,
+  },
 });

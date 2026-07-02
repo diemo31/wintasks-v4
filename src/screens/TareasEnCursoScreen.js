@@ -1,10 +1,16 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme';
 import { useGlobal } from '../context/GlobalContext';
 
 const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+const CATEGORIES = [
+  { key: 'approved', label: 'Aprobadas', icon: 'checkmark-circle', color: '#5B9E4A' },
+  { key: 'completed', label: 'Completadas', icon: 'time', color: '#3A7BD5' },
+  { key: 'pending', label: 'Pendientes', icon: 'ellipse', color: '#D4721A' },
+  { key: 'expired', label: 'Vencidas', icon: 'alert-circle', color: '#C0693A' },
+];
 
 const formatExpiry = (iso) => {
   const d = new Date(iso);
@@ -13,12 +19,29 @@ const formatExpiry = (iso) => {
 
 export default function TareasEnCursoScreen({ navigation }) {
   const { currentUser, getTasksForAdult, getTasksForChild, approveTask, rejectTask, redoTask, expireOverdueTasks, taskPhotos } = useGlobal();
+  const [expandedYears, setExpandedYears] = useState({});
+  const [expandedMonths, setExpandedMonths] = useState({});
+  const [expandedCategories, setExpandedCategories] = useState({});
 
   useEffect(() => { expireOverdueTasks(); }, []);
 
+  const toggleYear = (year) => setExpandedYears(p => ({ ...p, [year]: !p[year] }));
+  const toggleMonth = (key) => setExpandedMonths(p => ({ ...p, [key]: !p[key] }));
+  const toggleCategory = (key) => setExpandedCategories(p => ({ ...p, [key]: !p[key] }));
+
   const allTasks = currentUser.role === 'adulto' ? getTasksForAdult(currentUser.id) : getTasksForChild(currentUser.id);
-  const activeTasks = allTasks.filter(t => t.status === 'pending' || t.status === 'in_progress');
-  const doneTasks = allTasks.filter(t => t.status !== 'pending' && t.status !== 'in_progress');
+
+  const grouped = {};
+  allTasks.forEach(task => {
+    const d = new Date(task.createdAt);
+    const year = d.getFullYear();
+    const month = d.getMonth() + 1;
+    if (!grouped[year]) grouped[year] = {};
+    if (!grouped[year][month]) grouped[year][month] = [];
+    grouped[year][month].push(task);
+  });
+
+  const yearsSorted = Object.keys(grouped).sort((a, b) => b - a);
 
   const getStatusLabel = (task) => {
     if (task.status === 'pending' && currentUser.role === 'menor') {
@@ -40,7 +63,6 @@ export default function TareasEnCursoScreen({ navigation }) {
   };
 
   const isActive = (task) => currentUser.role === 'menor' && (task.status === 'pending' || task.status === 'in_progress');
-  const isViewable = (task) => currentUser.role === 'menor' || (currentUser.role === 'adulto' && (task.status === 'completed' || task.status === 'rejected'));
   const showAdultActions = (task) => currentUser.role === 'adulto' && (task.status === 'completed' || task.status === 'rejected');
 
   const getReadonly = (task) => {
@@ -122,35 +144,75 @@ export default function TareasEnCursoScreen({ navigation }) {
     );
   };
 
+  const renderCategory = (monthKey, cat, tasks) => {
+    const catKey = `${monthKey}-${cat.key}`;
+    const open = expandedCategories[catKey];
+    if (tasks.length === 0) return null;
+    return (
+      <View key={cat.key} style={styles.categoryBlock}>
+        <TouchableOpacity style={styles.categoryHeader} onPress={() => toggleCategory(catKey)} activeOpacity={0.7}>
+          <View style={styles.categoryLeft}>
+            <Ionicons name={cat.icon} size={14} color={cat.color} />
+            <Text style={[styles.categoryLabel, { color: cat.color }]}>{cat.label}</Text>
+            <Text style={styles.categoryCount}>{tasks.length}</Text>
+          </View>
+          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={14} color="#999" />
+        </TouchableOpacity>
+        {open && <View style={styles.categoryCards}>{tasks.map(renderCard)}</View>}
+      </View>
+    );
+  };
+
+  const renderMonth = (year, month) => {
+    const tasks = grouped[year][month];
+    const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+    const open = expandedMonths[monthKey];
+    const cats = {
+      approved: tasks.filter(t => t.status === 'approved'),
+      completed: tasks.filter(t => t.status === 'completed'),
+      pending: tasks.filter(t => t.status === 'pending' || t.status === 'in_progress' || t.status === 'rejected'),
+      expired: tasks.filter(t => t.status === 'expired'),
+    };
+    const total = tasks.length;
+    return (
+      <View key={month} style={styles.monthSection}>
+        <TouchableOpacity style={styles.monthHeader} onPress={() => toggleMonth(monthKey)} activeOpacity={0.7}>
+          <Text style={styles.monthTitle}>{MONTHS[month - 1]} — {total} tarea{total !== 1 ? 's' : ''}</Text>
+          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={16} color="#888" />
+        </TouchableOpacity>
+        {open && (
+          <View style={styles.monthBody}>
+            {CATEGORIES.map(cat => renderCategory(monthKey, cat, cats[cat.key]))}
+          </View>
+        )}
+      </View>
+    );
+  };
+
+  const renderYear = (year) => {
+    const open = expandedYears[year];
+    const months = Object.keys(grouped[year]).map(Number).sort((a, b) => b - a);
+    return (
+      <View key={year} style={styles.yearSection}>
+        <TouchableOpacity style={styles.yearHeader} onPress={() => toggleYear(year)} activeOpacity={0.7}>
+          <Text style={styles.yearTitle}>{year}</Text>
+          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color="#666" />
+        </TouchableOpacity>
+        {open && months.map(m => renderMonth(year, m))}
+      </View>
+    );
+  };
+
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.container}>
-        {currentUser.role === 'adulto' ? (
-          <View style={styles.content}>
-            <Text style={styles.heading}>Tareas creadas</Text>
-            {allTasks.length === 0 ? <Text style={styles.empty}>No hay tareas todavía</Text> : allTasks.map(renderCard)}
-          </View>
-        ) : (
-          <>
-            <View style={styles.sectionPending}>
-              <View style={styles.content}>
-                <Text style={styles.heading}>Tareas pendientes</Text>
-                {activeTasks.length === 0 ? <Text style={styles.empty}>No hay tareas pendientes</Text> : activeTasks.map(renderCard)}
-              </View>
-            </View>
-            {doneTasks.length > 0 && (
-              <>
-                <View style={styles.divider} />
-                <View style={styles.sectionDone}>
-                  <View style={styles.content}>
-                    <Text style={styles.heading}>Completadas</Text>
-                    {doneTasks.map(renderCard)}
-                  </View>
-                </View>
-              </>
-            )}
-          </>
-        )}
+        <View style={styles.content}>
+          {allTasks.length === 0 ? (
+            <Text style={styles.empty}>No hay tareas todavía</Text>
+          ) : (
+            yearsSorted.map(renderYear)
+          )}
+        </View>
       </ScrollView>
     </View>
   );
@@ -160,12 +222,23 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F8F6F4' },
   container: { flex: 1 },
   content: { padding: 20, paddingBottom: 4 },
-  sectionPending: { backgroundColor: '#EDE8E2' },
-  sectionDone: { backgroundColor: '#F8F6F4', paddingBottom: 24 },
-  divider: { height: 1, backgroundColor: '#E0D8D0' },
-  heading: { fontSize: 17, fontWeight: '700', color: '#1e293b', marginBottom: 16 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: '#1e293b', marginTop: 24, marginBottom: 16 },
   empty: { color: '#ccc', fontStyle: 'italic', textAlign: 'center', marginTop: 40, fontSize: 15 },
+
+  yearSection: { marginBottom: 16 },
+  yearHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#e0d8d0' },
+  yearTitle: { fontSize: 18, fontWeight: '800', color: '#1e293b' },
+
+  monthSection: { marginTop: 8, marginLeft: 4 },
+  monthHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8, paddingHorizontal: 8, backgroundColor: '#ede8e2', borderRadius: 8 },
+  monthTitle: { fontSize: 14, fontWeight: '700', color: '#555' },
+  monthBody: { marginTop: 6, paddingLeft: 8 },
+
+  categoryBlock: { marginBottom: 4 },
+  categoryHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 6, paddingHorizontal: 4 },
+  categoryLeft: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  categoryLabel: { fontSize: 13, fontWeight: '700' },
+  categoryCount: { fontSize: 12, fontWeight: '600', color: '#999', marginLeft: 2 },
+  categoryCards: { marginTop: 2 },
 
   card: { backgroundColor: '#FFF', borderRadius: 12, marginBottom: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1, overflow: 'hidden' },
   cardActive: { backgroundColor: '#F0EDEA', borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: '#D4721A', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4, elevation: 1, overflow: 'hidden' },

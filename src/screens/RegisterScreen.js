@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView,
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Platform,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SvgXml } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
@@ -80,7 +81,7 @@ const COUNTRY_CODES = [
 export default function RegisterScreen({ navigation }) {
   const { register, users } = useGlobal();
   const [step, setStep] = useState('phone');
-  const [selectedCountry, setSelectedCountry] = useState(COUNTRY_CODES[0]);
+  const [selectedCountry, setSelectedCountry] = useState(COUNTRY_CODES[5]);
   const [phone, setPhone] = useState('');
   const [showCountries, setShowCountries] = useState(false);
   const [phoneExists, setPhoneExists] = useState(false);
@@ -94,6 +95,7 @@ export default function RegisterScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [alias, setAlias] = useState('');
   const [fechaNac, setFechaNac] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -173,6 +175,25 @@ export default function RegisterScreen({ navigation }) {
       }
     }
     return true;
+  };
+
+  const handleDateChange = (text) => {
+    const digits = text.replace(/[^0-9]/g, '');
+    let formatted = '';
+    if (digits.length > 0) formatted = digits.slice(0, 2);
+    if (digits.length > 2) formatted += '/' + digits.slice(2, 4);
+    if (digits.length > 4) formatted += '/' + digits.slice(4, 8);
+    setFechaNac(formatted);
+  };
+
+  const handleDatePicker = (event, selectedDate) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      const d = selectedDate.getDate().toString().padStart(2, '0');
+      const m = (selectedDate.getMonth() + 1).toString().padStart(2, '0');
+      const y = selectedDate.getFullYear();
+      setFechaNac(`${d}/${m}/${y}`);
+    }
   };
 
   const handleRequestCode = () => {
@@ -342,8 +363,43 @@ export default function RegisterScreen({ navigation }) {
       {email.length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && (
         <Text style={[styles.passwordHintText, { marginBottom: 6 }]}>✗ Formato de correo inválido</Text>
       )}
-      <TextInput style={styles.input} placeholder="Fecha de nacimiento (DD/MM/AAAA) *" placeholderTextColor={Colors.textLight} keyboardType="number-pad" value={fechaNac} onChangeText={setFechaNac} maxLength={10} />
-      <TextInput style={styles.input} placeholder="Usuario (ej: @guille123) *" placeholderTextColor={Colors.textLight} value={alias} onChangeText={setAlias} />
+      <View style={[styles.row, { marginBottom: 12 }]}>
+        <View style={styles.halfInput}>
+          <TextInput style={[styles.input, { marginBottom: 0 }]} placeholder="Usuario *" placeholderTextColor={Colors.textLight} autoCapitalize="none" value={alias} onChangeText={setAlias} />
+        </View>
+        <View style={styles.halfInput}>
+          <TextInput style={[styles.input, { marginBottom: 0, paddingRight: 36 }]} placeholder="F. de Nac. *" placeholderTextColor={Colors.textLight} keyboardType="number-pad" value={fechaNac} onChangeText={handleDateChange} maxLength={10} />
+          <TouchableOpacity style={{ position: 'absolute', right: 10, top: 0, bottom: 0, justifyContent: 'center', padding: 4 }} onPress={() => setShowDatePicker(true)}>
+            <Ionicons name="calendar-outline" size={20} color={Colors.primary} />
+          </TouchableOpacity>
+        </View>
+      </View>
+      {showDatePicker && (
+        <DateTimePicker
+          value={(() => {
+            const p = fechaNac.split('/');
+            if (p.length === 3 && p[2].length === 4) return new Date(p[2], p[1] - 1, p[0]);
+            return new Date(2010, 0, 1);
+          })()}
+          mode="date"
+          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          maximumDate={new Date()}
+          onChange={handleDatePicker}
+        />
+      )}
+      {(() => {
+        const parts = fechaNac.split('/');
+        if (parts.length !== 3 || parts[2].length !== 4) return null;
+        const nac = new Date(parts[2], parts[1] - 1, parts[0]);
+        if (isNaN(nac.getTime())) return null;
+        const hoy = new Date();
+        if (nac > hoy) return <Text style={[styles.passwordHintText, { marginBottom: 6 }]}>✗ La fecha no puede ser futura</Text>;
+        let edad = hoy.getFullYear() - nac.getFullYear();
+        const m = hoy.getMonth() - nac.getMonth();
+        if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) edad--;
+        if (edad < 18) return <Text style={[styles.passwordHintText, { marginBottom: 6 }]}>✗ Debe ser mayor de 18 años</Text>;
+        return <Text style={[styles.passwordHintText, styles.passwordOk, { marginBottom: 6 }]}>✓ Edad válida</Text>;
+      })()}
       <View style={styles.pinRow}>
         <TextInput style={[styles.input, styles.pinInput]} placeholder="Contraseña (6-12 caracteres)" placeholderTextColor={Colors.textLight} autoCapitalize="none" secureTextEntry={!showPassword} value={password} onChangeText={handlePasswordChange} />
         <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(!showPassword)}>
@@ -393,12 +449,22 @@ export default function RegisterScreen({ navigation }) {
       {(() => {
         const parts = fechaNac.split('/');
         const fechaOk = parts.length === 3 && parts[2].length === 4;
+        const nac = fechaOk ? new Date(parts[2], parts[1] - 1, parts[0]) : null;
+        const hoy = new Date();
+        const notFuture = nac && nac <= hoy;
+        let edadOk = false;
+        if (nac && notFuture) {
+          let e = hoy.getFullYear() - nac.getFullYear();
+          const m = hoy.getMonth() - nac.getMonth();
+          if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) e--;
+          edadOk = e >= 18;
+        }
         const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
         const passOk = /[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password) && password.length >= 6 && password.length <= 12;
         const passMatch = password === confirmPassword && confirmPassword.length > 0;
         const nameOk = nombre.length > 0 && apellido.length > 0 && nombre !== apellido;
         const aliasOk = alias.length > 0;
-        const formValid = nameOk && emailOk && fechaOk && passOk && passMatch && aliasOk;
+        const formValid = nameOk && emailOk && fechaOk && notFuture && edadOk && passOk && passMatch && aliasOk;
         return (
           <TouchableOpacity style={[styles.button, !formValid && styles.buttonDisabled]} onPress={handleRegister} disabled={!formValid}>
             <Text style={styles.buttonText}>Crear cuenta</Text>
@@ -464,4 +530,6 @@ const styles = StyleSheet.create({
   phoneContent: { justifyContent: 'flex-start', paddingTop: 40 },
   profileContainer: { flex: 1 },
   profileContent: { justifyContent: 'flex-start', paddingTop: 32 },
+  row: { flexDirection: 'row', gap: 12 },
+  halfInput: { flex: 1 },
 });

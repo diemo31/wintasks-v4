@@ -184,15 +184,18 @@ export default function DashboardMenorScreen({ navigation }) {
             <View style={styles.logoContainer}>
               <SvgXml xml={LOGO_SVG} width={260} height={52} />
             </View>
-            <LinearGradient colors={['#E88900', '#C06000']} style={styles.walletCard}>
-              <Text style={styles.walletLabel}>Tu cuenta de tokens</Text>
-              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
-                <Text style={styles.walletAmount}>{myTokens}</Text>
-              </View>
-            </LinearGradient>
+            <TouchableOpacity onPress={() => navigation.navigate('MiCuentaTokensMenor')} activeOpacity={0.8}>
+              <LinearGradient colors={['#E88900', '#C06000']} style={styles.walletCard}>
+                <Text style={styles.walletLabel}>Tu cuenta de tokens</Text>
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 4 }}>
+                  <Text style={styles.walletAmount}>{myTokens}</Text>
+                  <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.6)" />
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
           </LinearGradient>
 
-          <TouchableOpacity style={styles.fidelityCardOuter}>
+          <TouchableOpacity style={styles.fidelityCardOuter} onPress={() => navigation.navigate('MisPuntosMenor')}>
             <LinearGradient colors={['#FFFFFF', '#F0EDEA']} style={styles.fidelityCard}>
               <Text style={styles.fidelityLabel}>
                 Mis puntos <Text style={styles.fidelityWin}>Win</Text><Text style={styles.fidelityTasks}>Tasks</Text>
@@ -237,7 +240,7 @@ export default function DashboardMenorScreen({ navigation }) {
             <Text style={styles.sectionTitle}>Juegos emocionantes</Text>
             <SecondaryCarousel data={juegos} />
             <View style={styles.pfmRow}>
-              <TouchableOpacity style={styles.pfmButton}>
+              <TouchableOpacity style={styles.pfmButton} onPress={() => navigation.navigate('Score')}>
                 <Ionicons name="star-outline" size={16} color="#B85C3A" style={{ marginRight: 6 }} />
                 <Text style={styles.pfmButtonText}>Score</Text>
               </TouchableOpacity>
@@ -245,7 +248,7 @@ export default function DashboardMenorScreen({ navigation }) {
                 <Ionicons name="checkmark-circle-outline" size={18} color="#B85C3A" style={{ marginRight: 6 }} />
                 <Text style={styles.pfmButtonText}>To do</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.pfmButton} onPress={() => navigation.navigate('SorpresaReveal')}>
+              <TouchableOpacity style={styles.pfmButton} onPress={() => navigation.navigate('SurprisesList')}>
                 <Ionicons name="sparkles-outline" size={16} color="#B85C3A" style={{ marginRight: 6 }} />
                 <Text style={styles.pfmButtonText}>Sorpresas</Text>
               </TouchableOpacity>
@@ -275,7 +278,7 @@ export default function DashboardMenorScreen({ navigation }) {
               <Ionicons name="list-outline" size={22} color="#334155" style={styles.drawerItemIcon} />
               <Text style={styles.drawerItemText}>Mis tareas</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.drawerItem} onPress={() => { toggleDrawer(false); navigation.navigate('SorpresaReveal'); }}>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { toggleDrawer(false); navigation.navigate('SurprisesList'); }}>
               <Ionicons name="sparkles-outline" size={22} color="#334155" style={styles.drawerItemIcon} />
               <Text style={styles.drawerItemText}>Sorpresas</Text>
             </TouchableOpacity>
