@@ -85,7 +85,7 @@ export default function RegisterScreen({ navigation }) {
   const [selectedCountry, setSelectedCountry] = useState(COUNTRY_CODES[5]);
   const [phone, setPhone] = useState('');
   const [showCountries, setShowCountries] = useState(false);
-  const [phoneExists, setPhoneExists] = useState(false);
+  const [phoneExists, setPhoneExists] = useState(undefined);
   const [codeRequested, setCodeRequested] = useState(false);
   const [timer, setTimer] = useState(0);
   const [otp, setOtp] = useState('');
@@ -132,9 +132,10 @@ export default function RegisterScreen({ navigation }) {
     const expected = getExpectedDigits(selectedCountry.code);
     if (expected > 0 && raw.length === expected) {
       const full = selectedCountry.code + raw;
+      setPhoneExists(undefined);
       (async () => setPhoneExists(await checkProfileExists(full)))();
     } else {
-      setPhoneExists(false);
+      setPhoneExists(undefined);
     }
   }, [phone, selectedCountry]);
 
@@ -312,7 +313,7 @@ export default function RegisterScreen({ navigation }) {
             {(() => {
               const raw = phone.replace(/[^0-9]/g, '');
               const expected = getExpectedDigits(selectedCountry.code);
-              if (expected > 0 && raw.length === expected) {
+              if (expected > 0 && raw.length === expected && phoneExists !== undefined) {
                 return (
                   <View style={{ position: 'absolute', right: 10, top: 0, bottom: 0, justifyContent: 'center' }}>
                     <Ionicons name={phoneExists ? 'close-circle' : 'checkmark-circle'} size={20} color={phoneExists ? Colors.error : Colors.success} />
@@ -323,11 +324,11 @@ export default function RegisterScreen({ navigation }) {
             })()}
           </View>
         </View>
-        {phoneExists && <Text style={styles.phoneError}>Este número ya está registrado</Text>}
-        {!phoneExists && selectedCountry.code === '+54' && <Text style={styles.phoneHint}>Sin 0, 9 ni 15 — ej. BA 11 1234 5678</Text>}
-        {!phoneExists && selectedCountry.code === '+52' && <Text style={styles.phoneHint}>10 dígitos — ej: 55 1234 5678</Text>}
-        {!phoneExists && selectedCountry.code === '+34' && <Text style={styles.phoneHint}>9 dígitos — ej: 612 345 678</Text>}
-        {!phoneExists && selectedCountry.code === '+1' && <Text style={styles.phoneHint}>10 dígitos — ej: 305 123 4567</Text>}
+        {phoneExists === true && <Text style={styles.phoneError}>Este número ya está registrado</Text>}
+        {phoneExists === false && selectedCountry.code === '+54' && <Text style={styles.phoneHint}>Sin 0, 9 ni 15 — ej. BA 11 1234 5678</Text>}
+        {phoneExists === false && selectedCountry.code === '+52' && <Text style={styles.phoneHint}>10 dígitos — ej: 55 1234 5678</Text>}
+        {phoneExists === false && selectedCountry.code === '+34' && <Text style={styles.phoneHint}>9 dígitos — ej: 612 345 678</Text>}
+        {phoneExists === false && selectedCountry.code === '+1' && <Text style={styles.phoneHint}>10 dígitos — ej: 305 123 4567</Text>}
 
         {showCountries && COUNTRY_CODES.map(c => (
           <TouchableOpacity
@@ -340,9 +341,9 @@ export default function RegisterScreen({ navigation }) {
         ))}
 
         <TouchableOpacity
-          style={[styles.button, (codeRequested || phone.length < 6 || phoneExists) && styles.buttonDisabled]}
+          style={[styles.button, (codeRequested || phone.length < 6 || phoneExists || phoneExists === undefined) && styles.buttonDisabled]}
           onPress={handleRequestCode}
-          disabled={codeRequested || phone.length < 6 || phoneExists}
+          disabled={codeRequested || phone.length < 6 || phoneExists || phoneExists === undefined}
         >
           <Text style={styles.buttonText}>
             {codeRequested ? `Reenviar en ${formatTime(timer)}` : 'Solicitar código'}
