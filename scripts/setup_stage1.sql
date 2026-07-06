@@ -15,7 +15,7 @@ BEGIN
   WHERE p.email = search_text
      OR p.alias = search_text
      OR p.phone = search_text
-     OR replace(p.phone, ' ', '') LIKE '%' || digits
+     OR (length(digits) > 5 AND replace(p.phone, ' ', '') LIKE '%' || digits)
   LIMIT 1;
 END;
 $$;

@@ -11,7 +11,7 @@ export default function PremiosScreen({ navigation }) {
   const handleDelete = (prize) => {
     Alert.alert('Eliminar premio', `¿Eliminar "${prize.title}"?`, [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: () => deletePrize(prize.id) },
+      { text: 'Eliminar', style: 'destructive', onPress: async () => await deletePrize(prize.id) },
     ]);
   };
 

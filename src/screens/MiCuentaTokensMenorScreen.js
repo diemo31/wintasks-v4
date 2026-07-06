@@ -134,6 +134,11 @@ export default function MiCuentaTokensMenorScreen({ navigation }) {
         })}
       </View>
 
+      <TouchableOpacity style={styles.transferBtn} onPress={() => navigation.navigate('Transferir')}>
+        <Ionicons name="swap-horizontal" size={18} color="#FFF" />
+        <Text style={styles.transferBtnText}>Transferir tokens</Text>
+      </TouchableOpacity>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Movimiento de tokens — {MONTHS[now.getMonth()]}</Text>
         {myBatches.length === 0 ? (
@@ -207,6 +212,8 @@ const styles = StyleSheet.create({
   taskDesc: { fontSize: 12, color: '#888', marginTop: 2 },
   taskExpiry: { fontSize: 11, color: '#C0693A', marginTop: 4, fontWeight: '500' },
 
+  transferBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#E88900', marginHorizontal: 20, marginTop: 10, paddingVertical: 12, borderRadius: 10, gap: 6 },
+  transferBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
   movementCard: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: '#f8f9fa', borderRadius: 10, padding: 10, marginBottom: 6,

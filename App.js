@@ -36,6 +36,7 @@ import ToDoScreen from './src/screens/ToDoScreen';
 import TaskProgressScreen from './src/screens/TaskProgressScreen';
 import TransferirScreen from './src/screens/TransferirScreen';
 import ScoreScreen from './src/screens/ScoreScreen';
+import CanjesScreen from './src/screens/CanjesScreen';
 import { Colors } from './src/theme';
 
 const Stack = createNativeStackNavigator();
@@ -92,6 +93,9 @@ function AppNavigator() {
           <Stack.Screen name="Hijos" component={HijosScreen} options={{ title: 'Mis hijos' }} />
           <Stack.Screen name="CrearMenor" component={CrearMenorScreen} options={{ title: 'Crear menor' }} />
           <Stack.Screen name="ToDo" component={ToDoScreen} options={{ title: 'To do' }} />
+          <Stack.Screen name="Transferir" component={TransferirScreen} options={{ title: 'Transferir' }} />
+          <Stack.Screen name="TaskProgress" component={TaskProgressScreen} options={{ title: 'Tarea' }} />
+          <Stack.Screen name="Canjes" component={CanjesScreen} options={{ title: 'Canjes pendientes' }} />
         </Stack.Group>
       ) : (
         <Stack.Group>
@@ -108,6 +112,7 @@ function AppNavigator() {
           <Stack.Screen name="MisPuntosMenor" component={MisPuntosMenorScreen} options={{ headerShown: false }} />
           <Stack.Screen name="Score" component={ScoreScreen} options={{ headerShown: false }} />
           <Stack.Screen name="MiCuentaTokensMenor" component={MiCuentaTokensMenorScreen} options={{ title: 'Mi cuenta de tokens' }} />
+          <Stack.Screen name="Canjes" component={CanjesScreen} options={{ title: 'Historial' }} />
         </Stack.Group>
       )}
     </Stack.Navigator>

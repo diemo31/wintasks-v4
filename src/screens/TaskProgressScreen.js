@@ -72,7 +72,7 @@ export default function TaskProgressScreen({ route, navigation }) {
         const photo = await cameraRef.current.takePictureAsync();
         setProcessing(true);
         saveTaskPhoto(task.id, photo.uri);
-        completeTask(task.id);
+        await completeTask(task.id, currentUser.id);
         setProcessing(false);
         setShowCamera(false);
         Alert.alert('¡Tarea completada!', 'Tu tarea fue enviada para aprobación.', [
@@ -172,6 +172,17 @@ export default function TaskProgressScreen({ route, navigation }) {
           );
         })()}
 
+        {task.status === 'approved' && currentUser?.role === 'adulto' && (
+          <TouchableOpacity style={styles.reactivateBtn} onPress={() => navigation.navigate('CreateTask', {
+            prefillTitle: task.title,
+            prefillDescription: task.description,
+            prefillTokenReward: task.tokenReward,
+          })}>
+            <Ionicons name="refresh" size={18} color={Colors.primary} />
+            <Text style={styles.reactivateText}>Reactivar como plantilla</Text>
+          </TouchableOpacity>
+        )}
+
         {!readonly && (
           <View style={styles.actions}>
             {task.status === 'pending' && (
@@ -227,6 +238,9 @@ const styles = StyleSheet.create({
   reminderBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#5B9E4A', paddingVertical: 12, borderRadius: 10, marginBottom: 16 },
   reminderBtnDisabled: { backgroundColor: '#f0ebe4' },
   reminderText: { fontSize: 14, fontWeight: '600', color: '#FFF' },
+
+  reactivateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: '#FFF8F3', paddingVertical: 12, borderRadius: 10, marginBottom: 16, borderWidth: 1, borderColor: Colors.primary },
+  reactivateText: { fontSize: 14, fontWeight: '600', color: Colors.primary },
 
   statusBox: { alignItems: 'center', padding: 24, gap: 10 },
   statusText: { fontSize: 15, color: '#c4b5a5', fontWeight: '500', textAlign: 'center' },

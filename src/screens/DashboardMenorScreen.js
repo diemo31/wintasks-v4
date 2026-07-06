@@ -234,9 +234,9 @@ export default function DashboardMenorScreen({ navigation, route }) {
                 </View>
                 <Text style={styles.appText}>Transferir</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.appButton}>
+              <TouchableOpacity style={styles.appButton} onPress={() => navigation.navigate('Canjes')}>
                 <View style={styles.appIcon}>
-                  <Ionicons name="stats-chart" size={32} color="#FFFFFF" />
+                  <Ionicons name="time-outline" size={32} color="#FFFFFF" />
                 </View>
                 <Text style={styles.appText}>Historial</Text>
               </TouchableOpacity>
@@ -285,11 +285,11 @@ export default function DashboardMenorScreen({ navigation, route }) {
               <Ionicons name="person-outline" size={22} color="#334155" style={styles.drawerItemIcon} />
               <Text style={styles.drawerItemText}>Mis datos</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.drawerItem} onPress={() => { toggleDrawer(false); navigation.navigate('TareasMenor'); }}>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { toggleDrawer(false); navigation.navigate('TareasMenor', { fromDrawer: true }); }}>
               <Ionicons name="list-outline" size={22} color="#334155" style={styles.drawerItemIcon} />
               <Text style={styles.drawerItemText}>Mis tareas</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.drawerItem} onPress={() => { toggleDrawer(false); navigation.navigate('SurprisesList'); }}>
+            <TouchableOpacity style={styles.drawerItem} onPress={() => { toggleDrawer(false); navigation.navigate('SurprisesList', { fromDrawer: true }); }}>
               <Ionicons name="sparkles-outline" size={22} color="#334155" style={styles.drawerItemIcon} />
               <Text style={styles.drawerItemText}>Sorpresas</Text>
             </TouchableOpacity>

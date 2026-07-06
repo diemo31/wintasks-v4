@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useGlobal } from '../context/GlobalContext';
 
 const MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const CHILD_COLORS = ['#E05A47', '#4A90D9', '#34A853', '#FBBC04', '#9C27B0', '#FF6F00', '#00ACC1', '#E91E63'];
+
 const GAP = 8;
 
 function monthKey(iso) {
@@ -53,12 +53,6 @@ export default function ScoreScreen({ navigation }) {
   }, []);
 
   const snapInterval = cardW + GAP;
-
-  const siblingColorMap = useMemo(() => {
-    const map = {};
-    siblings.forEach((s, i) => { map[s.id] = CHILD_COLORS[i % CHILD_COLORS.length]; });
-    return map;
-  }, [siblings]);
 
   const months = useMemo(() => {
     const childIds = siblings.map(s => s.id);
@@ -170,18 +164,9 @@ export default function ScoreScreen({ navigation }) {
                     })()}
                   </>
                 ) : hasData ? (
-                  <>
-                    <Text style={[styles.winnerLabel, isCurrent && styles.textWhite]}>
-                      🏆 {winners.length === 1 ? winners[0].alias : winners.map(w => w.alias).join(' & ')}
-                    </Text>
-                    {entries.map((e, i) => (
-                      <View key={e.childId} style={[styles.scoreRow, i === 0 && e.score > 0 && siblings.length > 1 ? (isCurrent ? styles.scoreRowWinnerCurrent : styles.scoreRowWinner) : null]}>
-                        <View style={[styles.scoreDot, { backgroundColor: siblingColorMap[e.childId] }]} />
-                        <Text style={[styles.scoreName, isCurrent && styles.textWhite]} numberOfLines={1}>{e.alias}</Text>
-                        <Text style={[styles.scoreNum, isCurrent && styles.textWhite]}>{e.score}</Text>
-                      </View>
-                    ))}
-                  </>
+                  <Text style={[styles.winnerLabel, isCurrent && styles.textWhite]} numberOfLines={2}>
+                    <Ionicons name="person" size={12} color={isCurrent ? '#FFF' : '#1e293b'} /> {winners.length === 1 ? winners[0].alias : winners.map(w => w.alias).join(' & ')}
+                  </Text>
                 ) : (
                   <Text style={[styles.noData, isCurrent && styles.textWhite]}>—</Text>
                 )}
@@ -195,45 +180,46 @@ export default function ScoreScreen({ navigation }) {
           const childrenToShow = isOnlyChild
             ? selectedData.entries.filter(e => e.childId === currentUser?.id)
             : selectedData.entries;
+          const barMax = goal !== null ? goal : Math.max(...selectedData.entries.map(e => e.score), 1);
           return (
-            <View style={styles.progressSection}>
-              <View style={styles.progressDivider} />
+            <>
+              {goal !== null && (
+                <View style={styles.goalBar}>
+                  <Text style={styles.goalBarText}>Meta del mes: {goal}</Text>
+                </View>
+              )}
+              <View style={styles.progressSection}>
               {childrenToShow.map(e => (
-                <View key={e.childId} style={styles.progressBlock}>
-                  <View style={styles.progressHeader}>
-                    <View style={[styles.progressDot, { backgroundColor: siblingColorMap[e.childId] }]} />
-                    <Text style={styles.progressName}>
-                      {e.alias}{e.childId === currentUser?.id && isOnlyChild ? '' : e.childId === currentUser?.id ? ' (vos)' : ''}
-                    </Text>
-                    <Text style={styles.progressCount}>
+                <View key={e.childId} style={styles.progressCard}>
+                  <View style={styles.progressCardRow}>
+                    <View style={styles.progressAvatar}>
+                      <Text style={styles.progressAvatarText}>{e.alias.charAt(0).toUpperCase()}</Text>
+                    </View>
+                    <View style={styles.progressInfo}>
+                      <Text style={styles.progressName}>
+                        {e.alias}{e.childId === currentUser?.id && !isOnlyChild ? ' (vos)' : ''}
+                      </Text>
+                      <View style={styles.progressBarBg}>
+                        <View style={[styles.progressBarFill, {
+                          width: `${Math.min((e.score / barMax) * 100, 100)}%`,
+                          backgroundColor: goal !== null && e.score >= goal ? '#22c55e' : '#E88900',
+                        }]} />
+                      </View>
+                    </View>
+                    <Text style={styles.progressScore}>
                       {goal !== null ? `${e.score}/${goal}` : e.score}
                     </Text>
                   </View>
-                  {goal !== null && (
-                    <View style={styles.progressBarBg}>
-                      <View style={[styles.progressBarFill, {
-                        width: `${Math.min((e.score / goal) * 100, 100)}%`,
-                        backgroundColor: e.score >= goal ? '#22c55e' : '#E88900',
-                      }]} />
-                    </View>
-                  )}
                 </View>
               ))}
-              <View style={styles.progressDivider} />
             </View>
+            </>
           );
         })()}
 
         {selectedData && (
           <View style={styles.detailCard}>
-            <Text style={styles.detailTitle}>
-              {MONTHS[selMonthNum - 1]} {selYear}
-              {!isOnlyChild && selectedData.winners.length > 0 && (
-                <Text style={styles.detailWinner}>
-                  {'  '}🏆 {selectedData.winners.map(w => w.alias).join(' & ')}
-                </Text>
-              )}
-            </Text>
+            <Text style={styles.detailTitle}>Mi performance del mes</Text>
             {(() => {
               const myMonthTasks = selectedData.monthTasks.filter(t => t.childId === currentUser?.id);
               if (myMonthTasks.length === 0) return <Text style={styles.detailEmpty}>Sin tareas este mes.</Text>;
@@ -305,18 +291,11 @@ const styles = StyleSheet.create({
   onlyScore: { fontSize: 28, fontWeight: '800', color: '#E88900', marginTop: 4 },
   goalMini: { fontSize: 10, fontWeight: '600', color: '#888', marginTop: 2 },
   goalMiniReached: { color: '#22c55e' },
-  winnerLabel: { fontSize: 11, fontWeight: '700', color: '#E88900', marginBottom: 6, textAlign: 'center' },
+  winnerLabel: { fontSize: 12, fontWeight: '700', color: '#E88900', marginVertical: 6, textAlign: 'center' },
   noData: { fontSize: 11, color: '#bbb', marginTop: 8 },
-  scoreRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    width: '100%', paddingHorizontal: 4, paddingVertical: 3,
-    borderRadius: 6,
-  },
-  scoreRowWinner: { backgroundColor: 'rgba(232,137,0,0.1)' },
-  scoreRowWinnerCurrent: { backgroundColor: 'rgba(255,255,255,0.2)' },
-  scoreDot: { width: 8, height: 8, borderRadius: 4, marginRight: 4 },
-  scoreName: { fontSize: 11, fontWeight: '600', color: '#1e293b', flex: 1 },
-  scoreNum: { fontSize: 14, fontWeight: '800', color: '#E88900', marginLeft: 4 },
+
+  goalBar: { backgroundColor: '#E88900', borderRadius: 12, paddingVertical: 10, paddingHorizontal: 16, marginTop: 8, alignItems: 'center' },
+  goalBarText: { color: '#FFF', fontSize: 15, fontWeight: '800' },
 
   detailCard: { backgroundColor: '#FFF', borderRadius: 14, padding: 14, marginTop: 6, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.08, shadowRadius: 4 },
   detailTitle: { fontSize: 16, fontWeight: '800', color: '#1e293b', marginBottom: 10 },
@@ -324,12 +303,13 @@ const styles = StyleSheet.create({
   detailEmpty: { textAlign: 'center', color: '#bbb', fontSize: 14, paddingVertical: 20 },
 
   progressSection: { paddingHorizontal: 4, marginTop: 8 },
-  progressDivider: { height: 1, backgroundColor: '#ddd', marginVertical: 4 },
-  progressBlock: { marginBottom: 6 },
-  progressHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  progressDot: { width: 10, height: 10, borderRadius: 5, marginRight: 8 },
-  progressName: { flex: 1, fontSize: 13, fontWeight: '700', color: '#333' },
-  progressCount: { fontSize: 13, fontWeight: '700', color: '#888' },
+  progressCard: { backgroundColor: '#f8f9fa', borderRadius: 14, padding: 12, marginBottom: 10, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3 },
+  progressCardRow: { flexDirection: 'row', alignItems: 'center' },
+  progressAvatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#E88900', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  progressAvatarText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
+  progressInfo: { flex: 1, marginRight: 8 },
+  progressName: { fontSize: 13, fontWeight: '700', color: '#333', marginBottom: 6 },
+  progressScore: { fontSize: 16, fontWeight: '800', color: '#E88900' },
   progressBarBg: { height: 10, backgroundColor: '#f0e6d8', borderRadius: 5, overflow: 'hidden' },
   progressBarFill: { height: '100%', borderRadius: 5 },
 

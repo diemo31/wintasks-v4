@@ -54,13 +54,13 @@ export default function SorpresaRevealScreen({ navigation, route }) {
     openSurprise(surprise.id);
   };
 
-  const handleClaim = () => {
+  const handleClaim = async () => {
     if (!canAfford) {
       setInsufficient(true);
       setTimeout(() => setInsufficient(false), 3000);
       return;
     }
-    const result = claimSurprise(surprise.id);
+    const result = await claimSurprise(surprise.id);
     setClaimed(true);
     if (result) {
       const parts = [];

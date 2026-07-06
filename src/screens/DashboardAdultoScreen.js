@@ -362,6 +362,7 @@ const styles = StyleSheet.create({
   },
   walletLabel: { fontSize: 12, color: 'rgba(255,255,255,0.75)', textAlign: 'left' },
   walletAmount: { fontSize: 28, fontWeight: 'bold', color: '#FEFCF8' },
+
   fidelityCardOuter: {
     marginHorizontal: 20, marginTop: -19,
     borderRadius: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 2 },

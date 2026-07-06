@@ -51,9 +51,10 @@ export default function LoginScreen({ navigation }) {
     return () => clearTimeout(t);
   }, [identifier]);
 
+
   const matchUser = (val) => {
     const digits = val.replace(/\D/g, '');
-    return users.find(u => u.alias === val || u.email === val || u.phone.replace(/\D/g, '').endsWith(digits));
+    return users.find(u => u.email === val || (digits.length > 5 && u.phone.replace(/\D/g, '').endsWith(digits)));
   };
 
   const resolveUser = async (val) => {
@@ -161,11 +162,11 @@ export default function LoginScreen({ navigation }) {
         {recovery === null ? (
           <>
             <Text style={styles.title}>Iniciar sesión</Text>
-            <Text style={styles.fieldLabel}>Usuario, teléfono o correo</Text>
+            <Text style={styles.fieldLabel}>Teléfono o correo</Text>
             <View style={styles.fieldRow}>
               <TextInput
                 style={[styles.input, { marginBottom: 0 }]}
-                placeholder="Ingresá tu usuario, teléfono o correo"
+                placeholder="Ingresá tu teléfono o correo"
                 placeholderTextColor={Colors.textLight}
                 autoCapitalize="none"
                 value={identifier}

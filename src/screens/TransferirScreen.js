@@ -30,6 +30,19 @@ export default function TransferirScreen({ navigation }) {
   const myPoints = getUserLoyaltyPoints(currentUser?.id);
   const available = type === 'tokens' ? myTokens : myPoints;
 
+  const isFromChild = currentUser?.role === 'menor';
+  const isToAdultRec = recipient?.role === 'adulto';
+  const isToChildRec = recipient?.role === 'menor';
+  const isFromAdultRec = currentUser?.role === 'adulto';
+  const restriction =
+    recipient
+      ? (isFromAdultRec && isToChildRec && currentUser?.id !== recipient.tutorId)
+        ? 'Solo podés transferir tokens a tus propios hijos.'
+        : (isFromChild && isToAdultRec && recipient.id !== currentUser?.tutorId)
+          ? 'Solo podés transferir tokens a tu tutor.'
+          : null
+      : null;
+
   const country = COUNTRIES[countryIdx];
 
   const handlePhoneChange = (text) => {
@@ -72,7 +85,13 @@ export default function TransferirScreen({ navigation }) {
       return;
     }
 
-    const confirmAndTransfer = () => {
+    // Adult→Minor: only own children allowed
+    if (isFromAdult && isToChild && currentUser.id !== recipient.tutorId) {
+      Alert.alert('Error', 'Solo podés transferir tokens a tus propios hijos.');
+      return;
+    }
+
+    const confirmAndTransfer = async () => {
       if (type === 'puntos') {
         const ok = moveLoyaltyPoints(currentUser.id, recipient.id, val);
         if (ok) {
@@ -86,20 +105,12 @@ export default function TransferirScreen({ navigation }) {
       }
 
       let expiryMode = 'all';
-      let lockTokens = false;
 
       if (isFromChild && isToAdult) {
-        // Minor→Adult tutor: only valid non-transfer tokens
         expiryMode = 'transfer';
-      } else if (isFromAdult && isToChild) {
-        // Adult→Minor: lock if not own child
-        const isOwnChild = currentUser.id === recipient.tutorId;
-        if (!isOwnChild) lockTokens = true;
       }
-      // Minor→Minor falls through (all, fromChildTransfer=true via isCrossChild)
-      // Adult→Adult falls through (all, no lock)
 
-      const result = transferTokens(currentUser.id, recipient.id, val, expiryMode, lockTokens);
+      const result = await transferTokens(currentUser.id, recipient.id, val, expiryMode);
 
       const goBack = () => navigation.goBack();
 
@@ -146,8 +157,6 @@ export default function TransferirScreen({ navigation }) {
       msgParts.push('Los tokens vencidos o provenientes de transferencias no se transferirán.');
     } else if (isFromChild && isToChild) {
       msgParts.push('Al transferir a otro menor, los tokens pierden su vigencia y no pueden recuperarse.');
-    } else if (isFromAdult && isToChild && currentUser.id !== recipient.tutorId) {
-      msgParts.push('Como no sos su tutor, estos tokens no podrán volver a tu cuenta.');
     }
     msgParts.push('Revisá la transacción con cuidado porque no puede revertirse.');
 
@@ -204,6 +213,12 @@ export default function TransferirScreen({ navigation }) {
               </View>
             </View>
           )}
+          {restriction && (
+            <View style={styles.restrictionBox}>
+              <Ionicons name="close-circle" size={18} color="#C0392B" />
+              <Text style={styles.restrictionText}>{restriction}</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.section}>
@@ -251,9 +266,9 @@ export default function TransferirScreen({ navigation }) {
         </View>
 
         <TouchableOpacity
-          style={[styles.transferBtn, (!recipient || !amount) && styles.transferBtnDisabled]}
+          style={[styles.transferBtn, (!recipient || !amount || restriction) && styles.transferBtnDisabled]}
           onPress={handleTransfer}
-          disabled={!recipient || !amount}
+          disabled={!recipient || !amount || !!restriction}
         >
           <Ionicons name="swap-horizontal" size={20} color="#FFF" />
           <Text style={styles.transferBtnText}>Transferir</Text>
@@ -304,6 +319,8 @@ const styles = StyleSheet.create({
   balanceText: { fontSize: 13, color: '#a8a29e' },
   balanceValue: { fontWeight: '700', color: Colors.primary, fontSize: 14 },
 
+  restrictionBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FDEDEC', borderRadius: 10, padding: 12, marginTop: 8 },
+  restrictionText: { flex: 1, fontSize: 13, color: '#C0392B', lineHeight: 18 },
   warningBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, backgroundColor: '#FFF5F0', borderRadius: 10, padding: 14, marginBottom: 20 },
   warningText: { flex: 1, fontSize: 13, color: '#C0693A', lineHeight: 18 },
 

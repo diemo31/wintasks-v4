@@ -10,6 +10,29 @@ import { Colors } from '../theme';
 import { useGlobal, getPasswordErrors } from '../context/GlobalContext';
 import { supabase } from '../lib/supabase';
 
+const VALID_TLDS = new Set([
+  'com', 'org', 'net', 'gov', 'edu', 'mil', 'int',
+  'io', 'me', 'co', 'info', 'biz', 'pro', 'name', 'mobi', 'asia', 'tel',
+  'xyz', 'online', 'app', 'dev', 'tech', 'shop', 'store', 'blog', 'site',
+  'club', 'top', 'win', 'guru', 'world', 'today', 'live', 'life',
+  'news', 'media', 'email', 'cloud', 'digital', 'network', 'social',
+  'video', 'photo', 'music', 'art', 'design', 'link', 'space', 'press',
+  'wiki', 'work', 'city', 'zone', 'tv', 'fm', 'cc',
+  'ar', 'au', 'bo', 'br', 'ca', 'cl', 'cn', 'co', 'cr', 'cu', 'de',
+  'do', 'ec', 'es', 'fr', 'gb', 'gt', 'hn', 'in', 'it', 'jp', 'kr',
+  'mx', 'ni', 'nl', 'nz', 'pa', 'pe', 'pl', 'pr', 'pt', 'py', 'ru',
+  'se', 'sg', 'sv', 'th', 'tr', 'tw', 'uk', 'us', 'uy', 've', 'za',
+  'test', 'example', 'localhost', 'invalid',
+]);
+
+const isValidEmail = (email) => {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return false;
+  const domainParts = email.split('@')[1].split('.');
+  const tld = domainParts[domainParts.length - 1];
+  if (!/^[a-zA-Z]{2,63}$/.test(tld)) return false;
+  return VALID_TLDS.has(tld.toLowerCase());
+};
+
 const LOGO_SVG = `<svg width="600" height="120" viewBox="0 0 600 120" xmlns="http://www.w3.org/2000/svg">
   <g transform="translate(95, 15)">
     <rect x="0" y="0" width="90" height="90" rx="22" fill="#E05A47"/>
@@ -94,6 +117,7 @@ export default function RegisterScreen({ navigation }) {
   const [nombre, setNombre] = useState('');
   const [apellido, setApellido] = useState('');
   const [email, setEmail] = useState('');
+  const [emailExists, setEmailExists] = useState(undefined);
   const [alias, setAlias] = useState('');
   const [fechaNac, setFechaNac] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -138,6 +162,15 @@ export default function RegisterScreen({ navigation }) {
       setPhoneExists(undefined);
     }
   }, [phone, selectedCountry]);
+
+  useEffect(() => {
+    if (email.length > 0 && isValidEmail(email)) {
+      setEmailExists(undefined);
+      (async () => setEmailExists(await checkProfileExists(email)))();
+    } else {
+      setEmailExists(undefined);
+    }
+  }, [email]);
 
   useEffect(() => {
     let interval;
@@ -284,6 +317,10 @@ export default function RegisterScreen({ navigation }) {
       }
       tutorUuid = tutor.user_id;
     }
+    if (await checkProfileExists(email)) {
+      Alert.alert('Error', 'Este correo electrónico ya está registrado');
+      return;
+    }
     const fullPhone = selectedCountry.code + phone.replace(/[^0-9]/g, '');
     const result = await register({ nombre, apellido, email, alias, phone: fullPhone, fechaNac, age: ageNum, password, tutorCode: tutorUuid, referralCode });
     if (!result.success) {
@@ -382,21 +419,52 @@ export default function RegisterScreen({ navigation }) {
         <Text style={styles.title}>Completá tu perfil</Text>
       <Text style={styles.subtitle}>Tus datos personales</Text>
 
-      <TextInput style={styles.input} placeholder="Nombre *" placeholderTextColor={Colors.textLight} value={nombre} onChangeText={setNombre} />
-      <TextInput style={styles.input} placeholder="Apellido *" placeholderTextColor={Colors.textLight} value={apellido} onChangeText={setApellido} />
-      {nombre.length > 0 && apellido.length > 0 && nombre === apellido && (
+      {(() => {
+        const nombreOk = nombre.length > 0;
+        const apellidoOk = apellido.length > 0 && nombre !== apellido;
+        const emailOk = isValidEmail(email) && emailExists !== true;
+        const aliasOk = alias.length > 0;
+        const p = fechaNac.split('/');
+        const fechaCompleta = p.length === 3 && p[2].length === 4;
+        const nac = fechaCompleta ? new Date(p[2], p[1] - 1, p[0]) : null;
+        const notFuture = nac && !isNaN(nac.getTime()) && nac <= new Date();
+        const fechaValida = fechaCompleta && notFuture;
+        const passOk = /[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password) && password.length >= 6 && password.length <= 12;
+        const confirmOk = password === confirmPassword && confirmPassword.length > 0;
+        const formValid = nombreOk && apellidoOk && emailOk && aliasOk && fechaValida && passOk && confirmOk;
+
+        return (
+          <>
+          <TextInput style={styles.input} placeholder="Nombre *" placeholderTextColor={Colors.textLight} value={nombre} onChangeText={setNombre} />
+      <TextInput style={[styles.input, !nombreOk && styles.inputDisabled]} placeholder="Apellido *" placeholderTextColor={Colors.textLight} value={apellido} onChangeText={setApellido} editable={nombreOk} />
+      {apellido.length > 0 && nombre === apellido && (
         <Text style={[styles.passwordHintText, { marginBottom: 6 }]}>✗ Nombre y apellido no pueden ser iguales</Text>
       )}
-      <TextInput style={styles.input} placeholder="Correo electrónico *" placeholderTextColor={Colors.textLight} keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
-      {email.length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) && (
+      <View style={{ position: 'relative' }}>
+        <TextInput style={[styles.input, { paddingRight: 40 }, !apellidoOk && styles.inputDisabled]} placeholder="Correo electrónico *" placeholderTextColor={Colors.textLight} keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} editable={apellidoOk} />
+        {(() => {
+          if (email.length > 0 && isValidEmail(email) && emailExists !== undefined) {
+            return (
+              <View style={{ position: 'absolute', right: 10, top: 0, bottom: 0, justifyContent: 'center' }}>
+                <Ionicons name={emailExists ? 'close-circle' : 'checkmark-circle'} size={20} color={emailExists ? Colors.error : Colors.success} />
+              </View>
+            );
+          }
+          return null;
+        })()}
+      </View>
+      {email.length > 0 && !isValidEmail(email) && (
         <Text style={[styles.passwordHintText, { marginBottom: 6 }]}>✗ Formato de correo inválido</Text>
+      )}
+      {emailExists === true && (
+        <Text style={[styles.passwordHintText, { marginBottom: 6 }]}>✗ Este correo ya está registrado</Text>
       )}
       <View style={[styles.row, { marginBottom: 12 }]}>
         <View style={styles.halfInput}>
-          <TextInput style={[styles.input, { marginBottom: 0 }]} placeholder="Usuario *" placeholderTextColor={Colors.textLight} autoCapitalize="none" value={alias} onChangeText={setAlias} />
+          <TextInput style={[styles.input, { marginBottom: 0 }, !emailOk && styles.inputDisabled]} placeholder="Usuario *" placeholderTextColor={Colors.textLight} autoCapitalize="none" value={alias} onChangeText={setAlias} editable={emailOk} />
         </View>
         <View style={styles.halfInput}>
-          <TextInput style={[styles.input, { marginBottom: 0, paddingRight: 36 }]} placeholder="F. de Nac. *" placeholderTextColor={Colors.textLight} keyboardType="number-pad" value={fechaNac} onChangeText={handleDateChange} maxLength={10} />
+          <TextInput style={[styles.input, { marginBottom: 0, paddingRight: 36 }, !aliasOk && styles.inputDisabled]} placeholder="F. de Nac. *" placeholderTextColor={Colors.textLight} keyboardType="number-pad" value={fechaNac} onChangeText={handleDateChange} maxLength={10} editable={aliasOk} />
           <TouchableOpacity style={{ position: 'absolute', right: 10, top: 0, bottom: 0, justifyContent: 'center', padding: 4 }} onPress={() => setShowDatePicker(true)}>
             <Ionicons name="calendar-outline" size={20} color={Colors.primary} />
           </TouchableOpacity>
@@ -416,10 +484,8 @@ export default function RegisterScreen({ navigation }) {
         />
       )}
       {(() => {
-        const parts = fechaNac.split('/');
-        if (parts.length !== 3 || parts[2].length !== 4) return null;
-        const nac = new Date(parts[2], parts[1] - 1, parts[0]);
-        if (isNaN(nac.getTime())) return null;
+        if (!fechaCompleta) return null;
+        if (!nac || isNaN(nac.getTime())) return null;
         const hoy = new Date();
         if (nac > hoy) return <Text style={[styles.passwordHintText, { marginBottom: 6 }]}>✗ La fecha no puede ser futura</Text>;
         let edad = hoy.getFullYear() - nac.getFullYear();
@@ -429,7 +495,7 @@ export default function RegisterScreen({ navigation }) {
         return <Text style={[styles.passwordHintText, styles.passwordOk, { marginBottom: 6 }]}>✓ Edad válida</Text>;
       })()}
       <View style={styles.pinRow}>
-        <TextInput style={[styles.input, styles.pinInput]} placeholder="Contraseña (6-12 caracteres)" placeholderTextColor={Colors.textLight} autoCapitalize="none" secureTextEntry={!showPassword} value={password} onChangeText={handlePasswordChange} />
+        <TextInput style={[styles.input, styles.pinInput, !fechaValida && styles.inputDisabled]} placeholder="Contraseña (6-12 caracteres)" placeholderTextColor={Colors.textLight} autoCapitalize="none" secureTextEntry={!showPassword} value={password} onChangeText={handlePasswordChange} editable={fechaValida} />
         <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(!showPassword)}>
           <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={22} color={Colors.textLight} />
         </TouchableOpacity>
@@ -451,7 +517,7 @@ export default function RegisterScreen({ navigation }) {
         </View>
       )}
       <View style={styles.pinRow}>
-        <TextInput style={[styles.input, styles.pinInput]} placeholder="Repetir contraseña *" placeholderTextColor={Colors.textLight} autoCapitalize="none" secureTextEntry={!showPassword} value={confirmPassword} onChangeText={setConfirmPassword} />
+        <TextInput style={[styles.input, styles.pinInput, !passOk && styles.inputDisabled]} placeholder="Repetir contraseña *" placeholderTextColor={Colors.textLight} autoCapitalize="none" secureTextEntry={!showPassword} value={confirmPassword} onChangeText={setConfirmPassword} editable={passOk} />
         <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(!showPassword)}>
           <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={22} color={Colors.textLight} />
         </TouchableOpacity>
@@ -463,9 +529,7 @@ export default function RegisterScreen({ navigation }) {
         <Text style={[styles.passwordHintText, styles.passwordOk, { marginBottom: 12 }]}>✓ Coinciden</Text>
       )}
       {(() => {
-        const parts = fechaNac.split('/');
-        if (parts.length !== 3) return null;
-        const nac = new Date(parts[2], parts[1] - 1, parts[0]);
+        if (!fechaCompleta || !nac || isNaN(nac.getTime()) || nac > new Date()) return null;
         const hoy = new Date();
         let edad = hoy.getFullYear() - nac.getFullYear();
         const m = hoy.getMonth() - nac.getMonth();
@@ -477,29 +541,10 @@ export default function RegisterScreen({ navigation }) {
         );
       })()}
 
-      {(() => {
-        const parts = fechaNac.split('/');
-        const fechaOk = parts.length === 3 && parts[2].length === 4;
-        const nac = fechaOk ? new Date(parts[2], parts[1] - 1, parts[0]) : null;
-        const hoy = new Date();
-        const notFuture = nac && nac <= hoy;
-        let edadOk = false;
-        if (nac && notFuture) {
-          let e = hoy.getFullYear() - nac.getFullYear();
-          const m = hoy.getMonth() - nac.getMonth();
-          if (m < 0 || (m === 0 && hoy.getDate() < nac.getDate())) e--;
-          edadOk = e >= 18;
-        }
-        const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-        const passOk = /[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password) && password.length >= 6 && password.length <= 12;
-        const passMatch = password === confirmPassword && confirmPassword.length > 0;
-        const nameOk = nombre.length > 0 && apellido.length > 0 && nombre !== apellido;
-        const aliasOk = alias.length > 0;
-        const formValid = nameOk && emailOk && fechaOk && notFuture && edadOk && passOk && passMatch && aliasOk;
-        return (
           <TouchableOpacity style={[styles.button, !formValid && styles.buttonDisabled]} onPress={handleRegister} disabled={!formValid}>
             <Text style={styles.buttonText}>Crear cuenta</Text>
           </TouchableOpacity>
+          </>
         );
       })()}
       <TouchableOpacity onPress={() => { setStep('phone'); setOtp(''); setIsPhoneVerified(false); setCodeRequested(false); }}>
@@ -564,4 +609,5 @@ const styles = StyleSheet.create({
   profileContent: { justifyContent: 'flex-start', paddingTop: 32 },
   row: { flexDirection: 'row', gap: 12 },
   halfInput: { flex: 1 },
+  inputDisabled: { opacity: 0.4 },
 });

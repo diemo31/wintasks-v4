@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Platform, Keyboard, Share, Linking } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ScrollView, Platform, Keyboard, Share, Linking, Modal, ActivityIndicator } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme';
 import { useGlobal, getPasswordErrors } from '../context/GlobalContext';
+import { supabase } from '../lib/supabase';
 import PearlBackground from '../components/PearlBackground';
 
 const COUNTRY_CODES = [
@@ -38,6 +39,7 @@ export default function CrearMenorScreen({ navigation }) {
   const scrollRef = useRef(null);
   const [kbHeight, setKbHeight] = useState(0);
   const inputRefs = useRef({});
+  const otpRef = useRef(null);
 
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', e => setKbHeight(e.endCoordinates.height));
@@ -49,7 +51,7 @@ export default function CrearMenorScreen({ navigation }) {
     const ref = inputRefs.current[key];
     if (!ref || !scrollRef.current) return;
     setTimeout(() => {
-      ref.measureLayout?.(scrollRef.current.getInnerViewNode(), (x, y) => {
+      ref.measureLayout?.(scrollRef.current, (x, y) => {
         scrollRef.current?.scrollTo({ y: y - 60, animated: true });
       }, () => {});
     }, 100);
@@ -68,7 +70,15 @@ export default function CrearMenorScreen({ navigation }) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [phoneExists, setPhoneExists] = useState(false);
+  const [phoneExists, setPhoneExists] = useState(undefined);
+  const [codeVerified, setCodeVerified] = useState(false);
+  const [smsCode, setSmsCode] = useState('');
+  const [codeRequested, setCodeRequested] = useState(false);
+  const [timer, setTimer] = useState(0);
+  const [otp, setOtp] = useState('');
+  const [otpError, setOtpError] = useState(false);
+  const [showOtpModal, setShowOtpModal] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   const getExpectedDigits = (code) => {
     if (code === '+54') return 10;
@@ -78,16 +88,63 @@ export default function CrearMenorScreen({ navigation }) {
     return 0;
   };
 
+  const checkProfileExists = async (searchText) => {
+    if (users.some(u => u.phone === searchText || u.email === searchText || u.alias === searchText)) return true;
+    try {
+      const { data } = await supabase.rpc('lookup_profile', { search_text: searchText });
+      return data && data.length > 0;
+    } catch (_) { return false; }
+  };
+
   useEffect(() => {
     const raw = phone.replace(/[^0-9]/g, '');
     const expected = getExpectedDigits(selectedCountry.code);
     if (expected > 0 && raw.length === expected) {
       const full = selectedCountry.code + raw;
-      setPhoneExists(users.some(u => u.phone === full));
+      setPhoneExists(undefined);
+      (async () => setPhoneExists(await checkProfileExists(full)))();
     } else {
-      setPhoneExists(false);
+      setPhoneExists(undefined);
     }
   }, [phone, selectedCountry, users]);
+
+  useEffect(() => {
+    if (timer <= 0) return;
+    const id = setInterval(() => setTimer(t => Math.max(t - 1, 0)), 1000);
+    return () => clearInterval(id);
+  }, [timer]);
+
+  const handleSendCode = () => {
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    setSmsCode(code);
+    setCodeRequested(true);
+    setTimer(120);
+    setOtp('');
+    setOtpError(false);
+    Alert.alert('Simulación SMS', `Has recibido un SMS.\nTu código es: ${code}`, [
+      { text: 'OK', onPress: () => setShowOtpModal(true) }
+    ]);
+  };
+
+  const handleOtpChange = (text) => {
+    setOtp(text);
+    if (text.length === 6) {
+      if (text === '123456' || text === smsCode) {
+        otpRef.current?.blur();
+        Keyboard.dismiss();
+        setCodeVerified(true);
+        setOtpError(false);
+        setTimer(0);
+        setShowOtpModal(false);
+      } else {
+        setCodeVerified(false);
+        setOtpError(true);
+      }
+    } else {
+      setCodeVerified(false);
+      setOtpError(false);
+    }
+  };
 
   const handleDateChange = (text) => {
     const digits = text.replace(/[^0-9]/g, '');
@@ -165,7 +222,9 @@ export default function CrearMenorScreen({ navigation }) {
       Alert.alert('Error', 'Correo electrónico ya registrado');
       return;
     }
+    setIsCreating(true);
     const result = await registerChild({ nombre, apellido, email, alias, phone: fullPhone, age: ageNum, fechaNac, password });
+    setIsCreating(false);
     if (!result.success) {
       Alert.alert('Error', result.errors.join('\n'));
     } else {
@@ -175,9 +234,9 @@ export default function CrearMenorScreen({ navigation }) {
           Linking.openURL(`whatsapp://send?text=${msg}`).catch(() => {
             Share.share({ message: `¡Hola! Te invito a usar WinTasks. Ingresá con:\nUsuario: ${alias}\nContraseña: (la que creamos)\nhttps://wintasks.app` });
           });
-          navigation.goBack();
+          navigation.navigate('DashboardAdulto');
         }},
-        { text: 'OK', onPress: () => navigation.goBack() },
+        { text: 'OK', onPress: () => navigation.navigate('DashboardAdulto') },
       ]);
     }
   };
@@ -206,7 +265,15 @@ export default function CrearMenorScreen({ navigation }) {
   })();
   const passOk = /[A-Z]/.test(password) && /[a-z]/.test(password) && /\d/.test(password) && password.length >= 6 && password.length <= 12;
   const passMatch = password === confirmPassword && confirmPassword.length > 0;
-  const formValid = nombre.length > 0 && apellido.length > 0 && nombre !== apellido && alias.length > 0 && fechaOk && edadOk && emailOk && passOk && passMatch && phone.length > 0;
+  const nombreOk = nombre.length > 0;
+  const apellidoOk = apellido.length > 0 && nombre !== apellido;
+  const aliasOk = alias.length > 0;
+  const fechaValida = fechaOk && edadOk;
+  const emailValido = emailOk;
+  const rawDigits = phone.replace(/[^0-9]/g, '');
+  const expectedDigits = getExpectedDigits(selectedCountry.code);
+  const phoneReady = expectedDigits > 0 && rawDigits.length === expectedDigits;
+  const formValid = nombreOk && apellidoOk && aliasOk && fechaValida && emailValido && phoneReady && passOk && passMatch;
 
   return (
     <PearlBackground>
@@ -215,17 +282,17 @@ export default function CrearMenorScreen({ navigation }) {
         <Text style={styles.subtitle}>Completá los datos del menor</Text>
 
         <TextInput style={styles.input} placeholder="Nombre *" placeholderTextColor={Colors.textLight} value={nombre} onChangeText={setNombre} />
-        <TextInput style={styles.input} placeholder="Apellido *" placeholderTextColor={Colors.textLight} value={apellido} onChangeText={setApellido} />
+        <TextInput style={[styles.input, !nombreOk && styles.inputDisabled]} placeholder="Apellido *" placeholderTextColor={Colors.textLight} value={apellido} onChangeText={setApellido} editable={nombreOk} />
         {nombre.length > 0 && apellido.length > 0 && nombre === apellido && (
           <Text style={styles.errorText}>✗ Nombre y apellido no pueden ser iguales</Text>
         )}
 
         <View style={[styles.row, { marginBottom: 12 }]}>
           <View style={styles.halfInput}>
-            <TextInput style={[styles.input, { marginBottom: 0 }]} placeholder="Usuario *" placeholderTextColor={Colors.textLight} autoCapitalize="none" value={alias} onChangeText={setAlias} />
+            <TextInput style={[styles.input, { marginBottom: 0 }, !apellidoOk && styles.inputDisabled]} placeholder="Usuario *" placeholderTextColor={Colors.textLight} autoCapitalize="none" value={alias} onChangeText={setAlias} editable={apellidoOk} />
           </View>
           <View style={styles.halfInput}>
-            <TextInput style={[styles.input, { marginBottom: 0, paddingRight: 36 }]} placeholder="F. de Nac. *" placeholderTextColor={Colors.textLight} keyboardType="number-pad" value={fechaNac} onChangeText={handleDateChange} maxLength={10} />
+            <TextInput style={[styles.input, { marginBottom: 0, paddingRight: 36 }, !aliasOk && styles.inputDisabled]} placeholder="F. de Nac. *" placeholderTextColor={Colors.textLight} keyboardType="number-pad" value={fechaNac} onChangeText={handleDateChange} maxLength={10} editable={aliasOk} />
             <TouchableOpacity style={{ position: 'absolute', right: 10, top: 0, bottom: 0, justifyContent: 'center', padding: 4 }} onPress={() => setShowDatePicker(true)}>
               <Ionicons name="calendar-outline" size={20} color={Colors.primary} />
             </TouchableOpacity>
@@ -257,7 +324,7 @@ export default function CrearMenorScreen({ navigation }) {
           <Text style={styles.errorText}>✗ Formato DD/MM/AAAA</Text>
         )}
 
-        <TextInput ref={setInputRef('email')} onFocus={() => scrollToInput('email')} style={styles.input} placeholder="Correo electrónico *" placeholderTextColor={Colors.textLight} keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} />
+        <TextInput ref={setInputRef('email')} onFocus={() => scrollToInput('email')} style={[styles.input, !fechaValida && styles.inputDisabled]} placeholder="Correo electrónico *" placeholderTextColor={Colors.textLight} keyboardType="email-address" autoCapitalize="none" value={email} onChangeText={setEmail} editable={fechaValida} />
         {email.length > 0 && !emailOk && (
           <Text style={styles.errorText}>✗ Formato de correo inválido</Text>
         )}
@@ -266,16 +333,16 @@ export default function CrearMenorScreen({ navigation }) {
         )}
 
         <View style={styles.phoneRow}>
-          <TouchableOpacity style={styles.countrySelector} onPress={() => setShowCountries(!showCountries)}>
+          <TouchableOpacity style={[styles.countrySelector, !emailValido && styles.inputDisabled]} onPress={() => setShowCountries(!showCountries)} disabled={!emailValido}>
             <Text style={styles.countryText}>{selectedCountry.flag} {selectedCountry.code}</Text>
             <Text style={styles.arrow}>{showCountries ? '▲' : '▼'}</Text>
           </TouchableOpacity>
           <View style={{ flex: 1, position: 'relative' }}>
-            <TextInput ref={setInputRef('phone')} onFocus={() => scrollToInput('phone')} style={styles.phoneInput} placeholder="Teléfono *" placeholderTextColor={Colors.textLight} keyboardType="phone-pad" value={phone} onChangeText={setPhone} />
+            <TextInput ref={setInputRef('phone')} onFocus={() => scrollToInput('phone')} style={[styles.phoneInput, !emailValido && styles.inputDisabled]} placeholder="Teléfono *" placeholderTextColor={Colors.textLight} keyboardType="phone-pad" value={phone} onChangeText={setPhone} editable={emailValido} />
             {(() => {
               const raw = phone.replace(/[^0-9]/g, '');
               const expected = getExpectedDigits(selectedCountry.code);
-              if (expected > 0 && raw.length === expected) {
+              if (expected > 0 && raw.length === expected && phoneExists !== undefined) {
                 return (
                   <View style={{ position: 'absolute', right: 10, top: 0, bottom: 0, justifyContent: 'center' }}>
                     <Ionicons name={phoneExists ? 'close-circle' : 'checkmark-circle'} size={20} color={phoneExists ? Colors.error : Colors.success} />
@@ -286,6 +353,11 @@ export default function CrearMenorScreen({ navigation }) {
             })()}
           </View>
         </View>
+        {phoneExists === true && <Text style={styles.phoneError}>Este número ya está registrado</Text>}
+        {emailValido && phoneExists !== true && selectedCountry.code === '+54' && <Text style={styles.phoneHint}>Sin 0, 9 ni 15 — ej. BA 11 1234 5678</Text>}
+        {emailValido && phoneExists !== true && selectedCountry.code === '+52' && <Text style={styles.phoneHint}>10 dígitos — ej: 55 1234 5678</Text>}
+        {emailValido && phoneExists !== true && selectedCountry.code === '+34' && <Text style={styles.phoneHint}>9 dígitos — ej: 612 345 678</Text>}
+        {emailValido && phoneExists !== true && selectedCountry.code === '+1' && <Text style={styles.phoneHint}>10 dígitos — ej: 305 123 4567</Text>}
         {showCountries && COUNTRY_CODES.map(c => (
           <TouchableOpacity
             key={c.code + c.label}
@@ -296,8 +368,12 @@ export default function CrearMenorScreen({ navigation }) {
           </TouchableOpacity>
         ))}
 
+        <TouchableOpacity style={[styles.button, styles.codeSpacing, { marginTop: 0 }, (codeVerified || !phoneReady || phoneExists === true) && styles.buttonDisabled]} onPress={handleSendCode} disabled={codeVerified || !phoneReady || phoneExists === true}>
+          <Text style={styles.buttonText}>{codeVerified ? 'Número validado' : 'Solicitar código'}</Text>
+        </TouchableOpacity>
+
         <View style={styles.pinRow}>
-          <TextInput ref={setInputRef('pass')} onFocus={() => scrollToInput('pass')} style={[styles.input, styles.pinInput]} placeholder="Contraseña (6-12 caracteres) *" placeholderTextColor={Colors.textLight} autoCapitalize="none" secureTextEntry={!showPassword} value={password} onChangeText={handlePasswordChange} />
+          <TextInput ref={setInputRef('pass')} onFocus={() => scrollToInput('pass')} style={[styles.input, styles.pinInput, !codeVerified && styles.inputDisabled]} placeholder="Contraseña (6-12 caracteres) *" placeholderTextColor={Colors.textLight} autoCapitalize="none" secureTextEntry={!showPassword} value={password} onChangeText={handlePasswordChange} editable={codeVerified} />
           <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(!showPassword)}>
             <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={22} color={Colors.textLight} />
           </TouchableOpacity>
@@ -320,7 +396,7 @@ export default function CrearMenorScreen({ navigation }) {
         )}
 
         <View style={styles.pinRow}>
-          <TextInput ref={setInputRef('confirm')} onFocus={() => scrollToInput('confirm')} style={[styles.input, styles.pinInput]} placeholder="Repetir contraseña *" placeholderTextColor={Colors.textLight} autoCapitalize="none" secureTextEntry={!showPassword} value={confirmPassword} onChangeText={setConfirmPassword} />
+          <TextInput ref={setInputRef('confirm')} onFocus={() => scrollToInput('confirm')} style={[styles.input, styles.pinInput, !passOk && styles.inputDisabled]} placeholder="Repetir contraseña *" placeholderTextColor={Colors.textLight} autoCapitalize="none" secureTextEntry={!showPassword} value={confirmPassword} onChangeText={setConfirmPassword} editable={passOk} />
           <TouchableOpacity style={styles.eyeButton} onPress={() => setShowPassword(!showPassword)}>
             <Ionicons name={showPassword ? 'eye-off' : 'eye'} size={22} color={Colors.textLight} />
           </TouchableOpacity>
@@ -340,6 +416,40 @@ export default function CrearMenorScreen({ navigation }) {
           <Text style={styles.link}>Volver</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <Modal visible={showOtpModal} transparent animationType="fade" onRequestClose={() => setShowOtpModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Código de verificación</Text>
+            <Text style={styles.modalSubtitle}>Ingresá el código de 6 dígitos que enviamos al {selectedCountry.code} {phone}</Text>
+            <TextInput
+              ref={otpRef}
+              style={[styles.otpInput, otpError && styles.inputError, codeVerified && styles.inputSuccess]}
+              placeholder="000000"
+              placeholderTextColor={Colors.textLight}
+              keyboardType="number-pad"
+              maxLength={6}
+              value={otp}
+              onChangeText={handleOtpChange}
+              autoFocus
+            />
+            {otpError && <Text style={styles.otpErrorText}>Código incorrecto. Intentá de nuevo.</Text>}
+            {timer > 0 && <Text style={styles.timerText}>⏱ Código válido por {timer}s</Text>}
+            {timer === 0 && codeRequested && (
+              <TouchableOpacity onPress={handleSendCode}>
+                <Text style={styles.resendLink}>Reenviar código</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={isCreating} transparent animationType="none">
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={Colors.white} />
+          <Text style={styles.loadingText}>Creando usuario...</Text>
+        </View>
+      </Modal>
     </PearlBackground>
   );
 }
@@ -368,15 +478,34 @@ const styles = StyleSheet.create({
     borderRadius: 8, fontSize: 15, color: Colors.text, borderWidth: 1, borderColor: Colors.surface,
   },
   countryOption: { backgroundColor: Colors.white, padding: 14, borderRadius: 8, marginBottom: 4, borderWidth: 1, borderColor: Colors.surface },
+  phoneHint: { fontSize: 12, color: Colors.textLight, marginTop: 3, marginBottom: 8, paddingLeft: 100 },
+  phoneError: { fontSize: 12, color: Colors.error, marginTop: 3, marginBottom: 8, paddingLeft: 100 },
   countryOptionActive: { borderColor: Colors.primary },
   pinRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   pinInput: { flex: 1, marginBottom: 0 },
+  inputDisabled: { opacity: 0.4 },
   eyeButton: { position: 'absolute', right: 14, padding: 4 },
   passwordHint: { paddingHorizontal: 4, marginBottom: 6 },
   passwordHintText: { fontSize: 12, color: Colors.error, marginBottom: 0 },
   passwordOk: { color: Colors.success },
+  codeSpacing: { marginTop: 12, marginBottom: 12 },
   button: { backgroundColor: '#E05A47', paddingVertical: 12, borderRadius: 10, alignItems: 'center', marginTop: 12, paddingHorizontal: 16 },
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: Colors.white, fontSize: 16, fontWeight: '600' },
   link: { color: Colors.primary, textAlign: 'center', marginTop: 16, fontSize: 14 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-start', alignItems: 'center', paddingHorizontal: 32, paddingTop: 120 },
+  modalContent: { backgroundColor: Colors.white, borderRadius: 16, padding: 24, width: '100%', maxWidth: 360, alignItems: 'center' },
+  modalTitle: { fontSize: 20, fontWeight: 'bold', color: Colors.text, marginBottom: 8 },
+  modalSubtitle: { fontSize: 14, color: Colors.textLight, textAlign: 'center', marginBottom: 20 },
+  otpInput: {
+    backgroundColor: Colors.surface, padding: 14, borderRadius: 12, fontSize: 28, color: Colors.text,
+    textAlign: 'center', letterSpacing: 8, width: '100%', borderWidth: 1, borderColor: Colors.surface,
+  },
+  inputError: { borderColor: Colors.error },
+  inputSuccess: { borderColor: Colors.success },
+  otpErrorText: { fontSize: 13, color: Colors.error, marginTop: 12 },
+  timerText: { fontSize: 14, color: Colors.text, marginTop: 16, fontWeight: '600' },
+  resendLink: { fontSize: 13, color: Colors.primary, marginTop: 16, fontWeight: '600' },
+  loadingOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center' },
+  loadingText: { color: Colors.white, fontSize: 16, marginTop: 16, fontWeight: '600' },
 });

@@ -17,19 +17,19 @@ function formatDate(iso) {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
-export default function SurprisesListScreen({ navigation }) {
+export default function SurprisesListScreen({ navigation, route }) {
   const { currentUser, getSurprisesForChild } = useGlobal();
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
     navigation.setOptions({
       headerLeft: () => (
-        <TouchableOpacity onPress={() => navigation.navigate('DashboardMenor', { openDrawer: true })} style={{ paddingLeft: insets.left + 12 }}>
+        <TouchableOpacity onPress={() => route.params?.fromDrawer ? navigation.navigate('DashboardMenor', { openDrawer: true }) : navigation.goBack()} style={{ paddingLeft: insets.left + 12 }}>
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>
       ),
     });
-  }, [navigation, insets]);
+  }, [navigation, insets, route.params?.fromDrawer]);
   const surprises = getSurprisesForChild(currentUser.id, currentUser.tutorId);
 
   const personal = surprises.filter(s => s.childId === currentUser.id);

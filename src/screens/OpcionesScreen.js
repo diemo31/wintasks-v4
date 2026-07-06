@@ -6,8 +6,8 @@ import { Colors } from '../theme';
 
 const OPCIONES = [
   { key: 'mejorprecio', label: 'Mejor precio', icon: 'pricetags', navigate: 'MejorPrecio' },
-  { key: 'placeholder1', label: 'Listas', icon: 'list-outline', navigate: null },
-  { key: 'placeholder2', label: 'Historial', icon: 'time-outline', navigate: null },
+  { key: 'transferencia', label: 'Transferir', icon: 'swap-horizontal', navigate: 'Transferir' },
+  { key: 'canjes', label: 'Canjes pendientes', icon: 'gift-outline', navigate: 'Canjes' },
   { key: 'placeholder3', label: 'Estadísticas', icon: 'stats-chart-outline', navigate: null },
   { key: 'placeholder4', label: 'Recordatorios', icon: 'alarm-outline', navigate: null },
   { key: 'placeholder5', label: 'Compartir', icon: 'share-outline', navigate: null },

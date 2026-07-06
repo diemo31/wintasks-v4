@@ -9,7 +9,7 @@ export default function CreatePrizeScreen({ navigation }) {
   const [description, setDescription] = useState('');
   const [tokenCost, setTokenCost] = useState('');
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!title.trim()) {
       Alert.alert('Campo requerido', 'El título del premio es obligatorio.');
       return;
@@ -19,7 +19,7 @@ export default function CreatePrizeScreen({ navigation }) {
       Alert.alert('Campo requerido', 'El costo en tokens debe ser un número mayor a 0.');
       return;
     }
-    createPrize({ title: title.trim(), description: description.trim(), tokenCost: cost, createdBy: currentUser.id });
+    await createPrize({ title: title.trim(), description: description.trim(), tokenCost: cost, createdBy: currentUser.id });
     navigation.goBack();
   };
 

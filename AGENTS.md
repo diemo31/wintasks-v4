@@ -75,7 +75,7 @@ Cada lote representa una entrada de tokens con vencimiento fijo. Nunca se reasig
 | `source` | string | Origen: `signup`, `task_reward`, `transfer`, `expired_refund`, `redeem`, `purchase_*` |
 | `acquiredAt` | string (ISO) | Fecha de adquisición del lote |
 | `expiresAt` | string (ISO) | Fecha de vencimiento **fija** (nunca se reinicia) |
-| `fromChildTransfer` | boolean \| undefined | `true` si proviene de transferencia menor→menor o adulto (no tutor)→menor. Marca tokens que **nunca pueden volver a un adulto**. |
+| `fromChildTransfer` | boolean \| undefined | `true` si proviene de transferencia menor→menor. Marca tokens que **nunca pueden volver a un adulto**. |
 
 ### TokenBatches — reglas de consumo
 
@@ -439,7 +439,7 @@ Un token está **"en juego"** desde que sale de la cuenta del adulto hasta que e
 Estados de un token en juego:
 - **Vigente**: `expiresAt > now` — puede volver al adulto si es de origen directo
 - **Vencido**: `expiresAt <= now` — se pierde al canjear
-- **De transferencia** (`fromChildTransfer: true`): proviene de una transferencia menor→menor o adulto (no tutor)→menor. Se pierde al canjear independientemente de su estado de vencimiento.
+- **De transferencia** (`fromChildTransfer: true`): proviene de una transferencia menor→menor. Se pierde al canjear independientemente de su estado de vencimiento.
 
 ### 9.1 Menor → Menor
 
@@ -463,24 +463,23 @@ Un menor solo puede transferir tokens a su **tutor**. Transferir a un adulto que
 | Tokens **vencidos** | Se rechazan (no se transfieren ni se descuentan). Mensaje: "X tokens estaban vencidos y no se transfirieron." |
 | Tokens **de transferencia** (`fromChildTransfer`) | Se rechazan. Mensaje: "Y tokens provenían de transferencias y no pueden transferirse a un adulto." |
 
-**Nota**: `fromChildTransfer` incluye tokens recibidos de otro menor o de un adulto no-tutor. Una vez que ingresan a un menor por esa vía, jamás pueden salir hacia un adulto.
+**Nota**: `fromChildTransfer` incluye tokens recibidos de otro menor. Una vez que ingresan a un menor por esa vía, jamás pueden salir hacia un adulto.
 
 ### 9.3 Adulto → Menor
 
-Un adulto solo puede transferir tokens **vigentes** (no vencidos). Aplica `lockTokens` según la relación.
+Un adulto solo puede transferir tokens **vigentes** (no vencidos) a sus propios hijos. Transferir a un menor del que no es tutor está **bloqueado** — debe transferir al tutor del menor.
 
 | Relación | Comportamiento |
 |----------|---------------|
 | **Es su tutor** | Los tokens se transfieren con `expiresAt` original, sin `fromChildTransfer`. Cuando el menor los canjee: si están vigentes → vuelven al tutor; si vencidos → se pierden. |
-| **No es su tutor** | `lockTokens: true` → el lote receptor se marca `fromChildTransfer: true`. Los tokens se transforman en "vencidos en juego": el menor puede usarlos, pero al canjearlos se pierden (no vuelven a ningún adulto). |
 
 ### 9.4 Adulto → Adulto
 
-Transferencia simple de titularidad. Ambos son adultos, los tokens están vigentes (el remitente no puede enviar vencidos porque `deductTokens` los filtra).
+Transferencia simple de titularidad. Usa `expiryMode='transfer'`: solo se transfieren tokens **vigentes** (no vencidos). Los vencidos se saltan.
 
 | Comportamiento |
 |---------------|
-| Los tokens se transfieren con `expiresAt` original. El receptor los usa como propios con sus hijos hasta su vencimiento. |
+| Los tokens vigentes se transfieren con `expiresAt` original. Los vencidos se omiten. El receptor los usa como propios con sus hijos hasta su vencimiento. |
 
 ### 9.5 Canje de Sorpresa (menor canjea sorpresa del tutor)
 
@@ -498,20 +497,24 @@ Mensajes al usuario:
 
 ### 9.6 Canje de Premio (menor canjea premio del tutor)
 
-Internamente usa `spendTokens(childId, amount)`. Todos los tokens se consumen sin retorno a ningún lado.
+Internamente usa `transferTokens(childId, tutorId, amount, 'consume')`. Misma lógica que el canje de sorpresa.
 
 | Origen del token | Comportamiento |
-|-----------------|---------------|
-| Vigente directo | Consumido (no retorna). |
-| Vencido | Consumido (se pierde). |
-| De transferencia | Consumido (se pierde). |
+|-----------------|------------------------|
+| **Vigente + directo** (no vencido, no `fromChildTransfer`) | Vuelve al tutor con su `expiresAt` original. |
+| **Vencido** | Se descuenta y se pierde (no llega al tutor). |
+| **De transferencia** (`fromChildTransfer`) | Se descuenta y se pierde (no llega al tutor), independientemente de si está vencido o no. |
+
+Mensajes al usuario:
+- `expiredLost > 0`: "X vencidos se perdieron en el canje."
+- `transferLost > 0`: "Y de transferencias se perdieron en el canje."
 
 ### 9.7 Funciones internas
 
 | Función | Propósito |
 |---------|-----------|
 | `transferTokens(from, to, amount, expiryMode, lockTokens)` | Núcleo de todas las transferencias. `expiryMode`: `'transfer'` (salta vencidos/transfer), `'all'` (todo pasa), `'consume'` (vencidos/transfer se pierden). Retorna desglose: `transferred`, `transferredExpired`, `transferredValid`, `expiredLost`, `transferLost`, `expiredSkipped`, `transferSkipped`, `remaining`. |
-| `spendTokens(userId, amount)` | Consume lotes de un usuario sin destino (usa en canje de premios). Retorna `{spent, expiredLost, transferLost, remaining}`. |
+| `spendTokens(userId, amount)` | Consume lotes sin retorno (uso interno). Retorna `{spent, expiredLost, transferLost, remaining}`. |
 | `deductTokens(userId, amount)` | Consume solo lotes no vencidos (usa en creación de tareas). Retorna `[{batchId, amount, expiresAt}]`. |
 | `moveTokens(from, to, amount)` | Wrapper simple que determina `expiryMode` según roles (ver 9.2 y 9.3). |
 
@@ -714,6 +717,34 @@ Ambas pantallas consultan `https://dolarapi.com/v1/dolares` al montarse para obt
 - **Menor**: `anita123@gmail.com` / `Anita1` (alias: `anita123`, phone: `+541122222222`, tutor: adult)
 - IDs: adult = `5c44f263-...`, child = `3317ce61-...`
 
+### CrearMenorScreen
+
+**Flujo de creación de cuenta menor** (adulto logueado crea a su hijo):
+
+1. **Campos secuenciales**: cada campo se habilita solo cuando el anterior está completo
+   - Nombre (siempre) → Apellido → Usuario → F. de Nac. → Correo → Teléfono → [Solicitar código] → Contraseña → Repetir
+   - Campos deshabilitados: `opacity: 0.4`
+2. **Validación de teléfono**: al completar dígitos, chequea duplicado vía `lookup_profile` RPC
+   - Muestra hint de formato (ej. "Sin 0, 9 ni 15") cuando `emailValido && phoneExists !== true`
+   - Muestra error si ya registrado
+3. **Simulación SMS**: botón "Solicitar código" → genera código aleatorio 6 dígitos → Alert con código → al tocar OK abre Modal OTP
+   - Timer 120s con reenvío
+   - Acepta `123456` o el código generado
+   - Al validar: `codeVerified = true`, botón cambia a "Número validado" (disabled)
+4. **Loading overlay**: al tocar "Crear cuenta" → Modal con spinner + "Creando usuario..." que oculta todo el proceso de registro
+5. **Registro** (`registerChild` en GlobalContext.js):
+   - Guarda sesión del adulto (`getSession`)
+   - `signUp` crea menor en Supabase Auth (con `tutor_id` en metadata)
+   - Si no devuelve sesión → `signInWithPassword` como menor
+   - `updateUser({ phone })` registra phone provider del menor
+   - `set_user_phone` RPC escribe columna phone
+   - Restaura sesión del adulto (`setSession`)
+   - Agrega usuario al estado local `users`
+6. Al éxito: Alert "La cuenta fue creada" → navega a `DashboardAdulto`
+
+**Navegación**: registrada en `App.js` como `<Stack.Screen name="CrearMenor">`. Se accede desde `DashboardAdulto` y `HijosScreen`.
+
 ### Pendiente (Stage 2+)
 - Migrar tasks, token_batches, prizes, surprises, loyalty, memberships, invites a tablas Supabase.
 - Agregar relacion `tutor_id` como FK real a `profiles.id`.
+- Mejorar CrearMenorScreen: crear menor vía RPC `auth.admin.create_user()` para evitar session flicker.

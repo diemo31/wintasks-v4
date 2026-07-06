@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
 const GlobalContext = createContext();
@@ -88,8 +88,8 @@ const TOKEN_REDEEM_OPTIONS = [
 export function GlobalProvider({ children }) {
   const [users, setUsers] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
-  const [tokenBatches, setTokenBatches] = useState(INITIAL_TOKEN_BATCHES);
-  const [tasks, setTasks] = useState(INITIAL_TASKS);
+  const [tokenBatches, setTokenBatches] = useState([]);
+  const [tasks, setTasks] = useState([]);
   const [memberships, setMemberships] = useState(INITIAL_MEMBERSHIPS);
   const [invites, setInvites] = useState(INITIAL_INVITES);
   const [loyaltyPoints, setLoyaltyPoints] = useState(INITIAL_LOYALTY);
@@ -99,6 +99,7 @@ export function GlobalProvider({ children }) {
   const [todoLists, setTodoLists] = useState([]);
   const [taskPhotos, setTaskPhotos] = useState({});
   const [scoreGoals, setScoreGoals] = useState({});
+  const [redemptions, setRedemptions] = useState([]);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -114,7 +115,99 @@ export function GlobalProvider({ children }) {
       const mapped = data.map(mapProfile);
       setUsers(mapped);
       const me = mapped.find(p => p.id === session.user.id);
-      if (me) setCurrentUser(me);
+      if (me) {
+        setCurrentUser(me);
+        const gid = me.tutorId || me.id;
+        supabase.from('score_goals').select('*').eq('user_id', gid).then(({ data: gd, error }) => {
+          if (error) console.log('SCORE_GOAL_LOAD_ERR', error);
+          else if (gd) setScoreGoals(Object.fromEntries(gd.map(g => [g.month_key, g.goal])));
+        });
+      }
+    });
+    supabase.from('tasks').select('*').then(({ data }) => {
+      if (data) setTasks(data.map(t => ({
+        id: t.id, title: t.title, description: t.description || '',
+        childId: t.child_id, createdBy: t.created_by, tokenReward: t.token_reward,
+        status: t.status, createdAt: t.created_at, completedAt: t.completed_at,
+        approvedAt: t.approved_at, expiresAt: t.expires_at,
+      })));
+    });
+    supabase.from('token_batches').select('*').then(({ data }) => {
+      if (data) setTokenBatches(data.map(b => ({
+        id: b.id, userId: b.user_id, amount: b.amount, remaining: b.remaining,
+        source: b.source, acquiredAt: b.acquired_at, expiresAt: b.expires_at,
+        fromChildTransfer: b.from_child_transfer,
+      })));
+    });
+    supabase.from('redemptions').select('*').then(({ data }) => {
+      if (data) setRedemptions(data.map(r => ({
+        id: r.id, childId: r.child_id, adultId: r.adult_id,
+        type: r.type, title: r.title, tokenCost: r.token_cost,
+        status: r.status, redemptionDetails: r.redemption_details,
+        redeemedAt: r.redeemed_at, deliveredAt: r.delivered_at,
+      })));
+    });
+    supabase.from('prizes').select('*').then(({ data }) => {
+      if (data) setPrizes(data.map(p => ({
+        id: p.id, title: p.title, description: p.description || '',
+        tokenCost: p.token_cost, createdBy: p.created_by,
+        usedCount: p.used_count, createdAt: p.created_at,
+      })));
+    });
+    supabase.from('surprises').select('*').then(({ data }) => {
+      if (data) setSurprises(data.map(s => ({
+        id: s.id, title: s.title, description: s.description || '',
+        childId: s.child_id, createdBy: s.created_by,
+        tokenReward: s.token_reward, forAll: s.for_all,
+        status: s.status, createdAt: s.created_at,
+        expirationDate: s.expiration_date, icon: s.icon || 'gift',
+        bgColor: s.bg_color || '#2D1B69',
+        bgImageUri: s.bg_image_uri, iconImageUri: s.icon_image_uri,
+        sentAt: s.sent_at,
+      })));
+    });
+    supabase.from('loyalty_points').select('*').then(({ data }) => {
+      if (data) {
+        const obj = {};
+        for (const lp of data) obj[lp.user_id] = lp.points;
+        setLoyaltyPoints(obj);
+      }
+    });
+    supabase.from('loyalty_history').select('*').then(({ data }) => {
+      if (data) setLoyaltyHistory(data.map(h => ({
+        id: h.id, userId: h.user_id, amount: h.amount,
+        type: h.type, description: h.description || '',
+        date: h.date,
+      })));
+    });
+    supabase.from('memberships').select('*').then(({ data }) => {
+      if (data) {
+        const obj = {};
+        for (const m of data) {
+          obj[m.user_id] = {
+            plan: m.plan, status: m.status, paymentStatus: m.payment_status,
+            startDate: m.start_date, endDate: m.end_date,
+            createdAt: m.created_at, paymentRef: m.payment_ref || '',
+            amountUsd: m.amount_usd || 0, amountArs: m.amount_ars || 0,
+            rate: m.rate || 0, userEmail: m.user_email || '',
+            expiresAt: m.expires_at,
+          };
+        }
+        setMemberships(obj);
+      }
+    });
+    supabase.from('invites').select('*').then(({ data }) => {
+      if (data) {
+        const obj = {};
+        for (const inv of data) {
+          if (!obj[inv.user_id]) obj[inv.user_id] = [];
+          obj[inv.user_id].push({
+            id: inv.id, invitedUserId: inv.invited_user_id,
+            invitedAlias: inv.invited_alias, invitedAt: inv.created_at,
+          });
+        }
+        setInvites(obj);
+      }
     });
   };
 
@@ -142,57 +235,87 @@ export function GlobalProvider({ children }) {
     const passwordErrors = getPasswordErrors(password);
     if (passwordErrors.length > 0) return { success: false, errors: passwordErrors };
     const isAdult = Number(age) >= 18;
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email, password,
+      options: {
+        data: { 
+            display_name: `${nombre} ${apellido}`, 
+            nombre, apellido, phone, alias, 
+            role: isAdult ? 'adulto' : 'menor',
+            fecha_nac: fechaNac,
+            age: Number(age),
+            ...(!isAdult && tutorCode ? { tutor_id: tutorCode } : {}),
+        },
+      },
+    });
     if (error) return { success: false, errors: [error.message] };
     if (!data?.user) return { success: false, errors: ['Error al crear usuario'] };
     if (!data?.session) {
       await supabase.auth.signInWithPassword({ email, password }).catch(() => {});
     }
     const userId = data.user.id;
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: userId, nombre, apellido, email, alias, phone,
-      age: Number(age), fecha_nac: fechaNac, role: isAdult ? 'adulto' : 'menor',
-      ...(isAdult ? {} : { tutor_id: tutorCode || null }),
-    });
-    if (profileError) return { success: false, errors: [profileError.message] };
+    if (phone) {
+      await supabase.auth.updateUser({ phone }).catch(e => console.warn('updateUser phone falló', e?.message));
+    }
+    try { await supabase.rpc('set_user_phone', { user_id: userId, phone_number: phone }); } catch (e) { console.warn('set_user_phone falló', e.message); }
     const newUser = { id: userId, nombre, apellido, email, alias, phone, age: Number(age), fechaNac, role: isAdult ? 'adulto' : 'menor', ...(isAdult ? {} : { tutorId: tutorCode || null }) };
     setUsers(prev => [...prev, newUser]);
     setCurrentUser(newUser);
     if (newUser.role === 'adulto') {
-      (function addTokenBatchDirect(uid, amt) {
-        setTokenBatches(prev => [...prev, { id: String(Date.now()) + String(Math.random()).slice(2, 8), userId: uid, amount: amt, remaining: amt, source: 'signup', acquiredAt: new Date().toISOString(), expiresAt: new Date(Date.now() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString() }]);
-      })(newUser.id, SIGNUP_TOKEN_BONUS);
+      await addTokens(newUser.id, SIGNUP_TOKEN_BONUS, 'signup');
       const endDate = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString();
-      setMemberships(prev => ({ ...prev, [newUser.id]: { plan: '6meses', startDate: new Date().toISOString(), endDate, status: 'active', paymentRef: 'GRATIS-6M', amountUsd: 0, amountArs: 0, rate: 0, createdAt: new Date().toISOString(), expiresAt: endDate, userEmail: email || '' } }));
+      const membership = { plan: '6meses', startDate: new Date().toISOString(), endDate, status: 'active', paymentRef: 'GRATIS-6M', amountUsd: 0, amountArs: 0, rate: 0, createdAt: new Date().toISOString(), expiresAt: endDate, userEmail: email || '' };
+      setMemberships(prev => ({ ...prev, [newUser.id]: membership }));
+      supabase.from('memberships').upsert({ user_id: newUser.id, plan: '6meses', status: 'active', payment_status: 'verified', payment_ref: 'GRATIS-6M', start_date: new Date().toISOString(), end_date: endDate, created_at: new Date().toISOString(), expires_at: endDate, user_email: email || '' }, { onConflict: 'user_id' }).catch(() => {});
     }
     if (referralCode && isAdult) {
       const { data: refData } = await supabase.rpc('lookup_profile', { search_text: referralCode }).catch(() => ({}));
       const inviter = refData?.[0] && refData[0].user_id !== newUser.id ? refData[0] : null;
       if (inviter) {
-        setLoyaltyPoints(prev => ({ ...prev, [inviter.user_id]: (prev[inviter.user_id] || 0) + 50 }));
+        const inviterNewPoints = (loyaltyPoints[inviter.user_id] || 0) + 50;
+        setLoyaltyPoints(prev => ({ ...prev, [inviter.user_id]: inviterNewPoints }));
         setInvites(prev => ({ ...prev, [inviter.user_id]: [...(prev[inviter.user_id] || []), { invitedUserId: newUser.id, invitedAlias: alias, invitedAt: new Date().toISOString() }] }));
-        setMemberships(prev => ({ ...prev, [newUser.id]: { plan: '1mes', startDate: new Date().toISOString(), endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), status: 'active', paymentRef: `REF-${newUser.id.slice(-4)}`, amountUsd: 0, amountArs: 0, rate: 0, createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), userEmail: email || '' } }));
+        supabase.from('loyalty_points').upsert({ user_id: inviter.user_id, points: inviterNewPoints }, { onConflict: 'user_id' }).catch(() => {});
+        supabase.from('invites').insert({ user_id: inviter.user_id, invited_user_id: newUser.id, invited_alias: alias, created_at: new Date().toISOString() }).catch(() => {});
+        const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+        const refMembership = { plan: '1mes', startDate: new Date().toISOString(), endDate, status: 'active', paymentRef: `REF-${newUser.id.slice(-4)}`, amountUsd: 0, amountArs: 0, rate: 0, createdAt: new Date().toISOString(), expiresAt: endDate, userEmail: email || '' };
+        setMemberships(prev => ({ ...prev, [newUser.id]: refMembership }));
+        supabase.from('memberships').upsert({ user_id: newUser.id, plan: '1mes', status: 'active', payment_status: 'verified', payment_ref: `REF-${newUser.id.slice(-4)}`, start_date: new Date().toISOString(), end_date: endDate, created_at: new Date().toISOString(), expires_at: endDate, user_email: email || '' }, { onConflict: 'user_id' }).catch(() => {});
       }
     }
     return { success: true, user: newUser };
-  }, [users]);
+  }, [users, addTokens, loyaltyPoints]);
 
   const registerChild = useCallback(async ({ nombre, apellido, email, alias, phone, age, fechaNac, password }) => {
     const passwordErrors = getPasswordErrors(password);
     if (passwordErrors.length > 0) return { success: false, errors: passwordErrors };
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data: { session: adultSession } } = await supabase.auth.getSession();
+    const { data, error } = await supabase.auth.signUp({
+      email, password,
+      options: {
+        data: { 
+            display_name: `${nombre} ${apellido}`, 
+            nombre, apellido, phone, alias, 
+            role: 'menor',
+            fecha_nac: fechaNac,
+            age: Number(age),
+            ...(currentUser?.id ? { tutor_id: currentUser.id } : {}),
+        },
+      },
+    });
     if (error) return { success: false, errors: [error.message] };
     if (!data?.user) return { success: false, errors: ['Error al crear usuario'] };
-    if (!data?.session) {
-      await supabase.auth.signInWithPassword({ email, password }).catch(() => {});
-    }
     const userId = data.user.id;
-    const { error: profileError } = await supabase.from('profiles').insert({
-      id: userId, nombre, apellido, email, alias, phone,
-      age: Number(age), fecha_nac: fechaNac, role: 'menor',
-      tutor_id: currentUser?.id || null,
-    });
-    if (profileError) return { success: false, errors: [profileError.message] };
+    if (phone) {
+      if (!data?.session) {
+        await supabase.auth.signInWithPassword({ email, password }).catch(() => {});
+      }
+      await supabase.auth.updateUser({ phone }).catch(e => console.warn('updateUser phone falló', e?.message));
+      try { await supabase.rpc('set_user_phone', { user_id: userId, phone_number: phone }); } catch (e) { console.warn('set_user_phone falló', e.message); }
+    }
+    if (adultSession) {
+      await supabase.auth.setSession({ access_token: adultSession.access_token, refresh_token: adultSession.refresh_token }).catch(() => {});
+    }
     const newUser = { id: userId, nombre, apellido, email, alias, phone, age: Number(age), fechaNac, role: 'menor', tutorId: currentUser?.id || null };
     setUsers(prev => [...prev, newUser]);
     return { success: true, user: newUser };
@@ -229,204 +352,139 @@ export function GlobalProvider({ children }) {
     return users.filter(u => u.role === 'menor' && u.tutorId === adultId);
   }, [users]);
 
-  const addTokens = useCallback((userId, amount, source = 'generic', expiresAt) => {
-    if (expiresAt && new Date(expiresAt) <= new Date()) return null;
-    const exp = expiresAt || new Date(Date.now() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString();
-    const batch = {
-      id: String(Date.now()) + String(Math.random()).slice(2, 8),
-      userId,
-      amount,
-      remaining: amount,
-      source,
-      acquiredAt: new Date().toISOString(),
-      expiresAt: exp,
-    };
+  const addTokens = useCallback(async (userId, amount, source = 'generic', expiresAt) => {
+    let exp = expiresAt;
+    if (typeof exp === 'number') exp = new Date(Date.now() + exp * 30 * 24 * 60 * 60 * 1000).toISOString();
+    if (!exp) exp = new Date(Date.now() + EXPIRY_MONTHS * 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabase.rpc('add_tokens', {
+      p_user_id: userId, p_amount: amount, p_source: source, p_expires_at: exp,
+    });
+    if (error || !data) return null;
+    const batch = { id: data, userId, amount, remaining: amount, source, acquiredAt: new Date().toISOString(), expiresAt: exp };
     setTokenBatches(prev => [...prev, batch]);
     return batch;
   }, []);
 
-  const deductTokens = useCallback((userId, amount) => {
+  const deductTokens = useCallback(async (userId, amount) => {
+    const { data: batches } = await supabase.from('token_batches')
+      .select('id, remaining, expires_at')
+      .eq('user_id', userId)
+      .gt('remaining', 0)
+      .gt('expires_at', new Date().toISOString())
+      .eq('from_child_transfer', false)
+      .order('expires_at', { ascending: true })
+      .order('acquired_at', { ascending: true });
+    if (!batches) return [];
+    let rem = amount;
     const deductions = [];
-    setTokenBatches(prev => {
-      const now = new Date();
-      const sorted = prev
-        .filter(b => b.userId === userId && b.remaining > 0 && new Date(b.expiresAt) > now)
-        .sort((a, b) => {
-          const aTransfer = a.fromChildTransfer ? 1 : 0;
-          const bTransfer = b.fromChildTransfer ? 1 : 0;
-          if (bTransfer - aTransfer !== 0) return bTransfer - aTransfer;
-          return new Date(a.expiresAt) - new Date(b.expiresAt) || new Date(a.acquiredAt) - new Date(b.acquiredAt);
-        });
-      let rem = amount;
-      const updates = [];
-      for (const batch of sorted) {
-        if (rem <= 0) break;
-        const deduct = Math.min(rem, batch.remaining);
-        rem -= deduct;
-        deductions.push({ batchId: batch.id, amount: deduct, expiresAt: batch.expiresAt });
-        updates.push({ batch, deduct });
-      }
-      if (rem > 0) { deductions.length = 0; return prev; }
-      return prev.map(b => {
-        const upd = updates.find(u => u.batch.id === b.id);
-        return upd ? { ...b, remaining: b.remaining - upd.deduct } : b;
-      });
+    for (const b of batches) {
+      if (rem <= 0) break;
+      const take = Math.min(rem, b.remaining);
+      rem -= take;
+      deductions.push({ batchId: b.id, amount: take, expiresAt: b.expires_at });
+      await supabase.from('token_batches').update({ remaining: b.remaining - take }).eq('id', b.id);
+    }
+    if (rem > 0) return [];
+    const newBatches = tokenBatches.map(tb => {
+      const d = deductions.find(dd => dd.batchId === tb.id);
+      return d ? { ...tb, remaining: tb.remaining - d.amount } : tb;
     });
+    setTokenBatches(newBatches);
     return deductions;
+  }, [tokenBatches]);
+
+  const transferTokens = useCallback(async (fromUserId, toUserId, amount, expiryMode = 'transfer', lockTokens = false, source = 'transfer') => {
+    const { data, error } = await supabase.rpc('transfer_tokens', {
+      p_from_user_id: fromUserId, p_to_user_id: toUserId,
+      p_amount: amount, p_expiry_mode: expiryMode, p_lock_tokens: lockTokens, p_source: source,
+    });
+    if (error || !data) return { success: false, transferred: 0, expiredLost: 0, transferLost: 0, expiredSkipped: 0, transferSkipped: 0, remaining: amount };
+    const { data: fresh } = await supabase.from('token_batches').select('*');
+    if (fresh) setTokenBatches(fresh.map(b => ({
+      id: b.id, userId: b.user_id, amount: b.amount, remaining: b.remaining,
+      source: b.source, acquiredAt: b.acquired_at, expiresAt: b.expires_at,
+      fromChildTransfer: b.from_child_transfer,
+    })));
+    return {
+      success: data.success, transferred: data.transferred || 0,
+      transferredExpired: 0, transferredValid: data.transferred || 0,
+      expiredLost: data.expired_lost || 0, transferLost: data.transfer_lost || 0,
+      expiredSkipped: data.expired_skipped || 0, transferSkipped: data.transfer_skipped || 0,
+      remaining: data.remaining || 0,
+    };
   }, []);
 
-  const transferTokens = useCallback((fromUserId, toUserId, amount, expiryMode = 'transfer', lockTokens = false) => {
+  const spendTokens = useCallback(async (userId, amount) => {
+    const { data, error } = await supabase.rpc('spend_tokens', { p_user_id: userId, p_amount: amount });
+    if (error || !data) return { success: false, spent: 0, expiredLost: 0, transferLost: 0, remaining: amount };
+    const { data: fresh } = await supabase.from('token_batches').select('*');
+    if (fresh) setTokenBatches(fresh.map(b => ({
+      id: b.id, userId: b.user_id, amount: b.amount, remaining: b.remaining,
+      source: b.source, acquiredAt: b.acquired_at, expiresAt: b.expires_at,
+      fromChildTransfer: b.from_child_transfer,
+    })));
+    return { success: data.success, spent: data.spent || 0, expiredLost: data.expired_lost || 0, transferLost: data.transfer_lost || 0, remaining: data.remaining || 0 };
+  }, []);
+
+  const moveTokens = useCallback(async (fromUserId, toUserId, amount) => {
     const fromUser = users.find(u => u.id === fromUserId);
     const toUser = users.find(u => u.id === toUserId);
-    const isCrossChild = fromUser?.role === 'menor' && toUser?.role === 'menor';
-    const neverReturn = isCrossChild || lockTokens;
-    let transferred = 0;
-    let transferredExpired = 0;
-    let expiredLost = 0;
-    let transferLost = 0;
-    let expiredSkipped = 0;
-    let transferSkipped = 0;
-    setTokenBatches(prev => {
-      const now = new Date();
-      const sourceBatches = prev
-        .filter(b => b.userId === fromUserId && b.remaining > 0)
-        .sort((a, b) => {
-          if (isCrossChild || lockTokens) {
-            const aT = a.fromChildTransfer ? 1 : 0;
-            const bT = b.fromChildTransfer ? 1 : 0;
-            if (bT - aT !== 0) return bT - aT;
-          }
-          return new Date(a.expiresAt) - new Date(b.expiresAt) || new Date(a.acquiredAt) - new Date(b.acquiredAt);
-        });
-      let rem = amount;
-      const updates = [];
-      const newBatches = [];
-      for (const batch of sourceBatches) {
-        if (rem <= 0) break;
-        const isExpired = new Date(batch.expiresAt) <= now;
-        if (expiryMode === 'transfer' && (isExpired || batch.fromChildTransfer)) {
-          if (isExpired) expiredSkipped += batch.remaining;
-          else transferSkipped += batch.remaining;
-          continue;
-        }
-        const deduct = Math.min(rem, batch.remaining);
-        rem -= deduct;
-        updates.push({ batch, deduct });
-        if (expiryMode === 'consume' && (isExpired || batch.fromChildTransfer)) {
-          if (isExpired) expiredLost += deduct;
-          else transferLost += deduct;
-          continue;
-        }
-        transferred += deduct;
-        if (isExpired) transferredExpired += deduct;
-        newBatches.push({
-          id: String(Date.now()) + String(Math.random()).slice(2, 8),
-          userId: toUserId,
-          amount: deduct,
-          remaining: deduct,
-          source: 'transfer',
-          acquiredAt: new Date().toISOString(),
-          expiresAt: batch.expiresAt,
-          ...(neverReturn ? { fromChildTransfer: true } : {}),
-        });
-      }
-      return [
-        ...prev.map(b => {
-          const upd = updates.find(u => u.batch.id === b.id);
-          return upd ? { ...b, remaining: b.remaining - upd.deduct } : b;
-        }),
-        ...newBatches,
-      ];
-    });
-    const totalLost = expiredLost + transferLost;
-    return {
-      success: amount - transferred - totalLost <= 0,
-      transferred, transferredExpired, transferredValid: transferred - transferredExpired,
-      expiredLost, transferLost,
-      expiredSkipped, transferSkipped,
-      remaining: Math.max(0, amount - transferred - totalLost),
-    };
-  }, [users]);
-
-  const spendTokens = useCallback((userId, amount) => {
-    let spent = 0;
-    let expiredLost = 0;
-    let transferLost = 0;
-    setTokenBatches(prev => {
-      const now = new Date();
-      const sorted = prev
-        .filter(b => b.userId === userId && b.remaining > 0)
-        .sort((a, b) => {
-          const aTransfer = a.fromChildTransfer ? 1 : 0;
-          const bTransfer = b.fromChildTransfer ? 1 : 0;
-          if (bTransfer - aTransfer !== 0) return bTransfer - aTransfer;
-          return new Date(a.expiresAt) - new Date(b.expiresAt) || new Date(a.acquiredAt) - new Date(b.acquiredAt);
-        });
-      let rem = amount;
-      const updates = [];
-      for (const batch of sorted) {
-        if (rem <= 0) break;
-        const deduct = Math.min(rem, batch.remaining);
-        rem -= deduct;
-        updates.push({ batch, deduct });
-        const isExpired = new Date(batch.expiresAt) <= now;
-        if (isExpired) expiredLost += deduct;
-        else if (batch.fromChildTransfer) transferLost += deduct;
-        else spent += deduct;
-      }
-      return prev.map(b => {
-        const upd = updates.find(u => u.batch.id === b.id);
-        return upd ? { ...b, remaining: b.remaining - upd.deduct } : b;
-      });
-    });
-    const totalLost = expiredLost + transferLost;
-    return { success: amount - spent - totalLost <= 0, spent, expiredLost, transferLost, remaining: Math.max(0, amount - spent - totalLost) };
-  }, []);
-
-  const moveTokens = useCallback((fromUserId, toUserId, amount) => {
-    const toUser = users.find(u => u.id === toUserId);
+    const isFromAdult = fromUser?.role === 'adulto';
+    const isToChild = toUser?.role === 'menor';
+    if (isFromAdult && isToChild && fromUserId !== toUser?.tutorId) return false;
     const isToAdult = toUser?.role === 'adulto';
-    const fromIsChild = users.find(u => u.id === fromUserId)?.role === 'menor';
-    const expiryMode = isToAdult && fromIsChild ? 'transfer' : 'all';
-    const result = transferTokens(fromUserId, toUserId, amount, expiryMode);
+    const fromIsChild = fromUser?.role === 'menor';
+    const expiryMode = isToAdult && (fromIsChild || isFromAdult) ? 'transfer' : 'all';
+    const result = await transferTokens(fromUserId, toUserId, amount, expiryMode);
     return result.success;
   }, [transferTokens, users]);
 
   const moveLoyaltyPoints = useCallback((fromUserId, toUserId, amount) => {
     const current = loyaltyPoints[fromUserId] || 0;
     if (current < amount) return false;
+    const fromNew = (loyaltyPoints[fromUserId] || 0) - amount;
+    const toNew = (loyaltyPoints[toUserId] || 0) + amount;
     setLoyaltyPoints(prev => ({
       ...prev,
-      [fromUserId]: (prev[fromUserId] || 0) - amount,
-      [toUserId]: (prev[toUserId] || 0) + amount,
+      [fromUserId]: fromNew,
+      [toUserId]: toNew,
     }));
     const entry = { id: String(Date.now()) + String(Math.random()).slice(2, 8), userId: fromUserId, amount: -amount, type: 'transfer_out', description: `Transferido a ${toUserId}`, date: new Date().toISOString() };
     setLoyaltyHistory(prev => [...prev, entry]);
     const entryIn = { id: String(Date.now()) + String(Math.random()).slice(2, 8), userId: toUserId, amount, type: 'transfer_in', description: `Recibido de ${fromUserId}`, date: new Date().toISOString() };
     setLoyaltyHistory(prev => [...prev, entryIn]);
+    supabase.from('loyalty_points').upsert({ user_id: fromUserId, points: fromNew }, { onConflict: 'user_id' }).catch(() => {});
+    supabase.from('loyalty_points').upsert({ user_id: toUserId, points: toNew }, { onConflict: 'user_id' }).catch(() => {});
+    supabase.from('loyalty_history').insert([
+      { user_id: fromUserId, amount: -amount, type: 'transfer_out', description: `Transferido a ${toUserId}`, date: new Date().toISOString() },
+      { user_id: toUserId, amount, type: 'transfer_in', description: `Recibido de ${fromUserId}`, date: new Date().toISOString() },
+    ]).catch(() => {});
     return true;
   }, [loyaltyPoints]);
 
-  const createTask = useCallback(({ title, description, childId, tokenReward, createdBy, expiresAt }) => {
+  const createTask = useCallback(async ({ title, description, childId, tokenReward, createdBy, expiresAt }) => {
     const reward = Number(tokenReward);
-    const deductions = deductTokens(createdBy, reward);
-    if (deductions.length === 0) return null;
-    const taskId = String(Date.now());
+    const exp = expiresAt || new Date(Date.now() + TASK_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const { data, error } = await supabase.rpc('create_task', {
+      p_title: title, p_description: description || '', p_child_id: childId,
+      p_created_by: createdBy, p_token_reward: reward, p_expires_at: exp,
+    });
+    if (error || !data) return null;
     const task = {
-      id: taskId,
-      title,
-      description,
-      childId,
-      createdBy,
-      tokenReward: reward,
-      status: 'pending',
+      id: data.id, title, description: description || '', childId, createdBy,
+      tokenReward: reward, status: 'pending',
       createdAt: new Date().toISOString(),
-      expiresAt: expiresAt || new Date(Date.now() + TASK_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString(),
-      _tokenSource: deductions,
+      expiresAt: exp,
     };
     setTasks(prev => [...prev, task]);
+    const { data: fresh } = await supabase.from('token_batches').select('*');
+    if (fresh) setTokenBatches(fresh.map(b => ({
+      id: b.id, userId: b.user_id, amount: b.amount, remaining: b.remaining,
+      source: b.source, acquiredAt: b.acquired_at, expiresAt: b.expires_at,
+      fromChildTransfer: b.from_child_transfer,
+    })));
     return task;
-  }, [deductTokens]);
+  }, []);
 
   const getTasksForAdult = useCallback((adultId) => {
     return tasks.filter(t => t.createdBy === adultId);
@@ -446,50 +504,30 @@ export function GlobalProvider({ children }) {
     setTaskPhotos(prev => ({ ...prev, [taskId]: photoUri }));
   }, []);
 
-  const completeTask = useCallback((taskId) => {
-    let completedTask = null;
-    setTasks(prev => prev.map(t => {
-      if (t.id === taskId && (t.status === 'pending' || t.status === 'in_progress')) {
-        completedTask = t;
-        return { ...t, status: 'completed', completedAt: new Date().toISOString() };
-      }
-      return t;
-    }));
-    if (completedTask) {
-      addLoyaltyEntry(completedTask.createdBy, TASK_COMPLETE_POINTS, 'earn_task', `Tarea "${completedTask.title}" completada`);
+  const completeTask = useCallback(async (taskId, childId) => {
+    const { error } = await supabase.rpc('complete_task', { p_task_id: taskId, p_child_id: childId });
+    if (error) return;
+    const task = tasks.find(t => t.id === taskId);
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'completed', completedAt: new Date().toISOString() } : t));
+    if (task) {
+      addLoyaltyEntry(task.createdBy, TASK_COMPLETE_POINTS, 'earn_task', `Tarea "${task.title}" completada`);
     }
-  }, [addLoyaltyEntry]);
+  }, [addLoyaltyEntry, tasks]);
 
-  const approveTask = useCallback((taskId) => {
-    let taskToApprove = null;
-    setTasks(prev => prev.map(t => {
-      if (t.id === taskId && t.status === 'completed') {
-        taskToApprove = t;
-        return { ...t, status: 'approved', approvedAt: new Date().toISOString() };
-      }
-      return t;
-    }));
-    if (taskToApprove) {
-      const source = taskToApprove._tokenSource;
-      if (source && source.length > 0) {
-        const now = new Date();
-        const newBatches = source.map(d => ({
-          id: String(Date.now()) + String(Math.random()).slice(2, 8),
-          userId: taskToApprove.childId,
-          amount: d.amount,
-          remaining: d.amount,
-          source: 'task_reward',
-          acquiredAt: now.toISOString(),
-          expiresAt: d.expiresAt,
-        }));
-        setTokenBatches(prev => [...prev, ...newBatches]);
-      } else {
-        addTokens(taskToApprove.childId, taskToApprove.tokenReward, 'task_reward');
-      }
-    }
-  }, [addTokens]);
+  const approveTask = useCallback(async (taskId, adultId) => {
+    const { data, error } = await supabase.rpc('approve_task', { p_task_id: taskId, p_adult_id: adultId });
+    if (error || !data?.success) return;
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'approved', approvedAt: new Date().toISOString() } : t));
+    const { data: fresh } = await supabase.from('token_batches').select('*');
+    if (fresh) setTokenBatches(fresh.map(b => ({
+      id: b.id, userId: b.user_id, amount: b.amount, remaining: b.remaining,
+      source: b.source, acquiredAt: b.acquired_at, expiresAt: b.expires_at,
+      fromChildTransfer: b.from_child_transfer,
+    })));
+  }, []);
 
-  const rejectTask = useCallback((taskId) => {
+  const rejectTask = useCallback(async (taskId, adultId) => {
+    await supabase.rpc('reject_task', { p_task_id: taskId, p_adult_id: adultId });
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'rejected' } : t));
   }, []);
 
@@ -501,35 +539,24 @@ export function GlobalProvider({ children }) {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, lastReminderAt: new Date().toISOString() } : t));
   }, []);
 
-  const expireOverdueTasks = useCallback(() => {
-    const now = new Date();
-    const overdue = tasks.filter(t => t.status === 'pending' && new Date(t.expiresAt) <= now);
-    if (overdue.length === 0) return;
-    const newBatches = [];
-    for (const task of overdue) {
-      const source = task._tokenSource;
-      if (source && source.length > 0) {
-        for (const d of source) {
-          if (new Date(d.expiresAt) <= now) continue;
-          newBatches.push({
-            id: String(Date.now()) + String(Math.random()).slice(2, 8),
-            userId: task.createdBy,
-            amount: d.amount,
-            remaining: d.amount,
-            source: 'expired_refund',
-            acquiredAt: now.toISOString(),
-            expiresAt: d.expiresAt,
-          });
-        }
-      } else {
-        addTokens(task.createdBy, task.tokenReward, 'expired_refund');
-      }
+  const expireOverdueTasks = useCallback(async () => {
+    const { data: count } = await supabase.rpc('expire_overdue_tasks');
+    if (count > 0) {
+      const { data: freshTasks } = await supabase.from('tasks').select('*');
+      if (freshTasks) setTasks(freshTasks.map(t => ({
+        id: t.id, title: t.title, description: t.description || '',
+        childId: t.child_id, createdBy: t.created_by, tokenReward: t.token_reward,
+        status: t.status, createdAt: t.created_at, completedAt: t.completed_at,
+        approvedAt: t.approved_at, expiresAt: t.expires_at,
+      })));
+      const { data: freshBatches } = await supabase.from('token_batches').select('*');
+      if (freshBatches) setTokenBatches(freshBatches.map(b => ({
+        id: b.id, userId: b.user_id, amount: b.amount, remaining: b.remaining,
+        source: b.source, acquiredAt: b.acquired_at, expiresAt: b.expires_at,
+        fromChildTransfer: b.from_child_transfer,
+      })));
     }
-    if (newBatches.length > 0) setTokenBatches(prev => [...prev, ...newBatches]);
-    setTasks(prev => prev.map(t =>
-      t.status === 'pending' && new Date(t.expiresAt) <= now ? { ...t, status: 'expired' } : t
-    ));
-  }, [tasks, addTokens]);
+  }, []);
 
   const getPendingTaskTokens = useCallback((adultId) => {
     return tasks
@@ -558,30 +585,29 @@ export function GlobalProvider({ children }) {
     const expiresAt = new Date(now.getTime() + 60 * 60 * 1000).toISOString();
     const planMonths = plan === '1mes' ? 1 : plan === '3meses' ? 3 : 6;
     const user = users.find(u => u.id === userId);
-    const existing = memberships[userId];
+    const existing = memberships[userId]?.status === 'active' ? memberships[userId] : null;
     let baseDate;
-    if (existing?.status === 'active' && existing?.endDate) {
+    if (existing?.endDate) {
       baseDate = new Date(existing.endDate);
     } else {
       baseDate = new Date();
     }
-    const endDate = new Date(baseDate.getTime() + planMonths * 30 * 24 * 60 * 60 * 1000);
-    setMemberships(prev => ({
-      ...prev,
-      [userId]: {
-        plan,
-        startDate: null,
-        endDate: endDate.toISOString(),
-        status: 'pending',
-        paymentRef: ref,
-        amountUsd,
-        amountArs,
-        rate,
-        createdAt: now.toISOString(),
-        expiresAt,
-        userEmail: user?.email || '',
-      },
-    }));
+    const endDate = new Date(baseDate.getTime() + planMonths * 30 * 24 * 60 * 60 * 1000).toISOString();
+    const membership = {
+      plan, startDate: null, endDate,
+      status: 'pending', paymentRef: ref,
+      amountUsd, amountArs, rate,
+      createdAt: now.toISOString(), expiresAt,
+      userEmail: user?.email || '',
+    };
+    setMemberships(prev => ({ ...prev, [userId]: membership }));
+    supabase.from('memberships').upsert({
+      user_id: userId, plan, status: 'pending', payment_status: 'pending',
+      payment_ref: ref, start_date: null, end_date: endDate,
+      amount_usd: amountUsd, amount_ars: amountArs, rate,
+      created_at: now.toISOString(), expires_at: expiresAt,
+      user_email: user?.email || '',
+    }, { onConflict: 'user_id' }).catch(() => {});
     return ref;
   }, [users, memberships]);
 
@@ -590,7 +616,11 @@ export function GlobalProvider({ children }) {
       const m = prev[userId];
       if (!m || m.status !== 'pending') return prev;
       const now = new Date();
-      if (now > new Date(m.expiresAt)) return { ...prev, [userId]: { ...m, status: 'expired' } };
+      if (now > new Date(m.expiresAt)) {
+        supabase.from('memberships').update({ status: 'expired' }).eq('user_id', userId).catch(() => {});
+        return { ...prev, [userId]: { ...m, status: 'expired' } };
+      }
+      supabase.from('memberships').update({ status: 'waiting_verification', payment_status: 'sent' }).eq('user_id', userId).catch(() => {});
       return { ...prev, [userId]: { ...m, status: 'waiting_verification', paidAt: now.toISOString() } };
     });
   }, []);
@@ -602,6 +632,7 @@ export function GlobalProvider({ children }) {
       if (!m || m.status !== 'waiting_verification') return prev;
       const pts = m.plan === '1mes' ? LOYALTY_RATES.membership1m : m.plan === '3meses' ? LOYALTY_RATES.membership3m : m.plan === '6meses' ? LOYALTY_RATES.membership6m : 0;
       awarded = { plan: m.plan, points: pts };
+      supabase.from('memberships').update({ status: 'active', payment_status: 'verified', start_date: new Date().toISOString() }).eq('user_id', userId).catch(() => {});
       return { ...prev, [userId]: { ...m, status: 'active', startDate: new Date().toISOString() } };
     });
     if (awarded) {
@@ -612,9 +643,10 @@ export function GlobalProvider({ children }) {
   const redeemPointsForMembership = useCallback((userId) => {
     const current = loyaltyPoints[userId] || 0;
     if (current < REDEEM_MEMBERSHIP_POINTS) return { success: false, error: 'No tenés suficientes puntos WinTasks. Necesitás 2500.' };
-    setLoyaltyPoints(prev => ({ ...prev, [userId]: (prev[userId] || 0) - REDEEM_MEMBERSHIP_POINTS }));
-    const entry = { id: String(Date.now()) + String(Math.random()).slice(2, 8), userId, amount: -REDEEM_MEMBERSHIP_POINTS, type: 'redeem_membership', description: 'Canjeado por 1 mes de membresía', date: new Date().toISOString() };
-    setLoyaltyHistory(prev => [...prev, entry]);
+    const newPoints = (loyaltyPoints[userId] || 0) - REDEEM_MEMBERSHIP_POINTS;
+    setLoyaltyPoints(prev => ({ ...prev, [userId]: newPoints }));
+    supabase.from('loyalty_points').upsert({ user_id: userId, points: newPoints }, { onConflict: 'user_id' }).catch(() => {});
+    supabase.from('loyalty_history').insert({ user_id: userId, amount: -REDEEM_MEMBERSHIP_POINTS, type: 'redeem_membership', description: 'Canjeado por 1 mes de membresía', date: new Date().toISOString() }).catch(() => {});
     const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     setMemberships(prev => {
       const existing = prev[userId];
@@ -625,15 +657,14 @@ export function GlobalProvider({ children }) {
         baseDate = new Date();
       }
       const newEndDate = new Date(baseDate.getTime() + 30 * 24 * 60 * 60 * 1000);
-      return {
-        ...prev,
-        [userId]: {
-          plan: '1mes', startDate: new Date().toISOString(), endDate: newEndDate.toISOString(),
-          status: 'active', paymentRef: `CANJE-${userId.slice(-4)}-${Date.now().toString().slice(-5)}`,
-          amountUsd: 0, amountArs: 0, rate: 0,
-          createdAt: new Date().toISOString(), expiresAt: new Date().toISOString(), userEmail: '',
-        },
+      const membership = {
+        plan: '1mes', startDate: new Date().toISOString(), endDate: newEndDate.toISOString(),
+        status: 'active', paymentRef: `CANJE-${userId.slice(-4)}-${Date.now().toString().slice(-5)}`,
+        amountUsd: 0, amountArs: 0, rate: 0,
+        createdAt: new Date().toISOString(), expiresAt: new Date().toISOString(), userEmail: '',
       };
+      supabase.from('memberships').upsert({ user_id: userId, plan: '1mes', status: 'active', payment_status: 'verified', payment_ref: membership.paymentRef, start_date: membership.startDate, end_date: membership.endDate, created_at: membership.createdAt }, { onConflict: 'user_id' }).catch(() => {});
+      return { ...prev, [userId]: membership };
     });
     return { success: true };
   }, [loyaltyPoints]);
@@ -644,9 +675,10 @@ export function GlobalProvider({ children }) {
     if (current < puntos) return { success: false, error: 'No tenés suficientes puntos WinTasks.' };
     const tok = Math.floor(puntos / REDEEM_TOKEN_POINTS);
     const puntosUsados = tok * REDEEM_TOKEN_POINTS;
-    setLoyaltyPoints(prev => ({ ...prev, [userId]: (prev[userId] || 0) - puntosUsados }));
-    const entry = { id: String(Date.now()) + String(Math.random()).slice(2, 8), userId, amount: -puntosUsados, type: 'redeem_tokens', description: `Canjeado por ${tok} token${tok > 1 ? 's' : ''}`, date: new Date().toISOString() };
-    setLoyaltyHistory(prev => [...prev, entry]);
+    const newPoints = (loyaltyPoints[userId] || 0) - puntosUsados;
+    setLoyaltyPoints(prev => ({ ...prev, [userId]: newPoints }));
+    supabase.from('loyalty_points').upsert({ user_id: userId, points: newPoints }, { onConflict: 'user_id' }).catch(() => {});
+    supabase.from('loyalty_history').insert({ user_id: userId, amount: -puntosUsados, type: 'redeem_tokens', description: `Canjeado por ${tok} token${tok > 1 ? 's' : ''}`, date: new Date().toISOString() }).catch(() => {});
     addTokens(userId, tok, 'redeem');
     return { success: true, tokens: tok, puntosUsados };
   }, [loyaltyPoints, addTokens]);
@@ -656,9 +688,10 @@ export function GlobalProvider({ children }) {
     if (!option) return { success: false, error: 'Opción inválida.' };
     const current = loyaltyPoints[userId] || 0;
     if (current < option.points) return { success: false, error: `Necesitás ${option.points} puntos. Tenés ${current}.` };
-    setLoyaltyPoints(prev => ({ ...prev, [userId]: (prev[userId] || 0) - option.points }));
-    const entry = { id: String(Date.now()) + String(Math.random()).slice(2, 8), userId, amount: -option.points, type: 'redeem_tokens', description: `Canjeado por ${option.tokens} tokens`, date: new Date().toISOString() };
-    setLoyaltyHistory(prev => [...prev, entry]);
+    const newPoints = (loyaltyPoints[userId] || 0) - option.points;
+    setLoyaltyPoints(prev => ({ ...prev, [userId]: newPoints }));
+    supabase.from('loyalty_points').upsert({ user_id: userId, points: newPoints }, { onConflict: 'user_id' }).catch(() => {});
+    supabase.from('loyalty_history').insert({ user_id: userId, amount: -option.points, type: 'redeem_tokens', description: `Canjeado por ${option.tokens} tokens`, date: new Date().toISOString() }).catch(() => {});
     addTokens(userId, option.tokens, 'redeem');
     return { success: true, tokens: option.tokens };
   }, [loyaltyPoints, addTokens]);
@@ -668,6 +701,7 @@ export function GlobalProvider({ children }) {
     if (!m) return null;
     if (m.status === 'pending' && new Date() > new Date(m.expiresAt)) {
       setMemberships(prev => ({ ...prev, [userId]: { ...prev[userId], status: 'expired' } }));
+      supabase.from('memberships').update({ status: 'expired' }).eq('user_id', userId).catch(() => {});
       return { ...m, status: 'expired' };
     }
     return m;
@@ -702,23 +736,29 @@ export function GlobalProvider({ children }) {
     setLoyaltyPoints(prev => ({ ...prev, [userId]: (prev[userId] || 0) + amount }));
     const entry = { id: String(Date.now()) + String(Math.random()).slice(2, 8), userId, amount, type, description, date: new Date().toISOString() };
     setLoyaltyHistory(prev => [...prev, entry]);
+    supabase.from('loyalty_points').upsert({ user_id: userId, points: (loyaltyPoints[userId] || 0) + amount }, { onConflict: 'user_id' }).catch(() => {});
+    supabase.from('loyalty_history').insert({ user_id: userId, amount, type, description, date: new Date().toISOString() }).catch(() => {});
     return entry;
-  }, []);
+  }, [loyaltyPoints]);
 
-  const createAndSendSurprise = useCallback(({ title, description, childId, tokenReward, createdBy, icon, bgColor, expirationDate, bgImageUri, iconImageUri, forAll }) => {
+  const createAndSendSurprise = useCallback(async ({ title, description, childId, tokenReward, createdBy, icon, bgColor, expirationDate, bgImageUri, iconImageUri, forAll }) => {
+    const { data, error } = await supabase.from('surprises').insert({
+      title, description: description || '', child_id: childId, created_by: createdBy,
+      token_reward: Number(tokenReward), for_all: forAll || false,
+      expiration_date: expirationDate || null, icon: icon || 'gift',
+      bg_color: bgColor || '#2D1B69', bg_image_uri: bgImageUri || null,
+      icon_image_uri: iconImageUri || null,
+      status: 'sent', sent_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+    }).select().single();
+    if (error || !data) return null;
     const surprise = {
-      id: String(Date.now()),
-      title, description, childId, createdBy,
-      tokenReward: Number(tokenReward),
-      icon: icon || 'gift',
-      bgColor: bgColor || '#2D1B69',
-      expirationDate: expirationDate || null,
-      bgImageUri: bgImageUri || null,
-      iconImageUri: iconImageUri || null,
-      forAll: forAll || false,
-      status: 'sent',
-      createdAt: new Date().toISOString(),
-      sentAt: new Date().toISOString(),
+      id: data.id, title, description: description || '', childId, createdBy,
+      tokenReward: Number(tokenReward), icon: icon || 'gift',
+      bgColor: bgColor || '#2D1B69', bgImageUri: bgImageUri || null,
+      iconImageUri: iconImageUri || null, forAll: forAll || false,
+      status: 'sent', createdAt: data.created_at,
+      sentAt: data.sent_at, expirationDate: expirationDate || null,
     };
     setSurprises(prev => [...prev, surprise]);
     return surprise;
@@ -732,42 +772,54 @@ export function GlobalProvider({ children }) {
     return surprises.filter(s => s.childId === childId || (s.forAll && s.createdBy === tutorId));
   }, [surprises]);
 
-  const openSurprise = useCallback((surpriseId) => {
+  const openSurprise = useCallback(async (surpriseId) => {
+    await supabase.from('surprises').update({ status: 'opened' }).eq('id', surpriseId).eq('status', 'sent');
     setSurprises(prev => prev.map(s => s.id === surpriseId ? { ...s, status: 'opened' } : s));
   }, []);
 
-  const claimSurprise = useCallback((surpriseId) => {
-    let target = null;
-    setSurprises(prev => prev.map(s => {
-      if (s.id === surpriseId && (s.status === 'opened' || s.status === 'sent')) {
-        target = s;
-        return { ...s, status: 'claimed' };
-      }
-      return s;
-    }));
-    if (target) {
-      return transferTokens(target.childId, target.createdBy, target.tokenReward, 'consume');
-    }
-    return null;
-  }, [transferTokens]);
-
-  const createPrize = useCallback(({ title, description, tokenCost, createdBy }) => {
-    const prize = {
-      id: String(Date.now()),
-      title,
-      description: description || '',
-      tokenCost: Number(tokenCost),
-      createdBy,
-      createdAt: new Date().toISOString(),
-      usedCount: 0,
-    };
-    setPrizes(prev => [...prev, prize]);
-    return prize;
+  const claimSurprise = useCallback(async (surpriseId) => {
+    const { data, error } = await supabase.rpc('claim_surprise', { p_surprise_id: surpriseId });
+    setSurprises(prev => prev.map(s => s.id === surpriseId ? { ...s, status: 'claimed' } : s));
+    const { data: freshR } = await supabase.from('redemptions').select('*');
+    if (freshR) setRedemptions(freshR.map(r => ({
+      id: r.id, childId: r.child_id, adultId: r.adult_id,
+      type: r.type, title: r.title, tokenCost: r.token_cost,
+      status: r.status, redemptionDetails: r.redemption_details,
+      redeemedAt: r.redeemed_at, deliveredAt: r.delivered_at,
+    })));
+    const { data: freshB } = await supabase.from('token_batches').select('*');
+    if (freshB) setTokenBatches(freshB.map(b => ({
+      id: b.id, userId: b.user_id, amount: b.amount, remaining: b.remaining,
+      source: b.source, acquiredAt: b.acquired_at, expiresAt: b.expires_at,
+      fromChildTransfer: b.from_child_transfer,
+    })));
+    if (error || !data?.success) return { success: false, error: data?.error || 'Error al canjear' };
+    return { success: true, ...data };
   }, []);
 
-  const deletePrize = useCallback((prizeId) => {
-    setPrizes(prev => prev.filter(p => p.id !== prizeId));
+  const createPrize = useCallback(async ({ title, description, tokenCost, createdBy }) => {
+    const { error } = await supabase.rpc('create_prize', {
+      p_title: title, p_description: description || '', p_token_cost: Number(tokenCost), p_created_by: createdBy,
+    });
+    if (error) return null;
+    const { data } = await supabase.from('prizes').select('*');
+    if (data) setPrizes(data.map(p => ({
+      id: p.id, title: p.title, description: p.description || '',
+      tokenCost: p.token_cost, createdBy: p.created_by,
+      usedCount: p.used_count, createdAt: p.created_at,
+    })));
+    return data?.find(p => p.created_by === createdBy);
   }, []);
+
+  const deletePrize = useCallback(async (prizeId) => {
+    await supabase.rpc('delete_prize', { p_prize_id: prizeId, p_user_id: currentUser?.id });
+    const { data } = await supabase.from('prizes').select('*');
+    if (data) setPrizes(data.map(p => ({
+      id: p.id, title: p.title, description: p.description || '',
+      tokenCost: p.token_cost, createdBy: p.created_by,
+      usedCount: p.used_count, createdAt: p.created_at,
+    })));
+  }, [currentUser]);
 
   const getAdultPrizes = useCallback((adultId) => {
     return prizes
@@ -775,8 +827,8 @@ export function GlobalProvider({ children }) {
       .sort((a, b) => b.usedCount - a.usedCount || new Date(b.createdAt) - new Date(a.createdAt));
   }, [prizes]);
 
-  const incrementPrizeUsed = useCallback((prizeId) => {
-    setPrizes(prev => prev.map(p => p.id === prizeId ? { ...p, usedCount: p.usedCount + 1 } : p));
+  const incrementPrizeUsed = useCallback(async (prizeId) => {
+    await supabase.rpc('increment_prize_used', { p_prize_id: prizeId });
   }, []);
 
   const getPrizesForChild = useCallback((childId) => {
@@ -787,16 +839,28 @@ export function GlobalProvider({ children }) {
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
   }, [users, prizes]);
 
-  const redeemPrize = useCallback((childId, prizeId) => {
+  const redeemPrize = useCallback(async (childId, prizeId) => {
     const prize = prizes.find(p => p.id === prizeId);
     if (!prize) return { success: false, error: 'Premio no encontrado' };
     const child = users.find(u => u.id === childId);
     if (!child) return { success: false, error: 'Usuario no encontrado' };
-    const result = spendTokens(childId, prize.tokenCost);
-    if (!result.success) return { success: false, error: 'No tenés suficientes tokens' };
-    incrementPrizeUsed(prizeId);
-    return { ...result, success: true };
-  }, [prizes, users, spendTokens, incrementPrizeUsed]);
+    const tutorId = child.tutorId;
+    if (!tutorId) return { success: false, error: 'No tiene tutor asignado' };
+    const { data, error } = await supabase.rpc('create_redemption', {
+      p_child_id: childId, p_adult_id: tutorId,
+      p_type: 'prize', p_title: prize.title, p_token_cost: prize.tokenCost,
+    });
+    const { data: fresh } = await supabase.from('redemptions').select('*');
+    if (fresh) setRedemptions(fresh.map(r => ({
+      id: r.id, childId: r.child_id, adultId: r.adult_id,
+      type: r.type, title: r.title, tokenCost: r.token_cost,
+      status: r.status, redemptionDetails: r.redemption_details,
+      redeemedAt: r.redeemed_at, deliveredAt: r.delivered_at,
+    })));
+    if (error || !data?.success) return { success: false, error: data?.error || 'No tenés suficientes tokens' };
+    await incrementPrizeUsed(prizeId);
+    return { success: true, ...data };
+  }, [prizes, users, incrementPrizeUsed]);
 
   const createList = useCallback((name) => {
     const list = { id: String(Date.now()), name, items: [], completed: false, createdAt: new Date().toISOString() };
@@ -833,24 +897,53 @@ export function GlobalProvider({ children }) {
     setTodoLists(prev => prev.map(l => l.id === id ? { ...l, name } : l));
   }, []);
 
-  const setScoreGoal = useCallback((monthKey, goal) => {
-    if (goal === null || goal === undefined) {
-      setScoreGoals(prev => {
-        const next = { ...prev };
-        delete next[monthKey];
-        return next;
-      });
-    } else {
-      setScoreGoals(prev => ({
-        ...prev,
-        [monthKey]: Number(goal),
-      }));
-    }
+  const deliverRedemption = useCallback(async (redemptionId) => {
+    const { data, error } = await supabase.rpc('deliver_redemption', { p_redemption_id: redemptionId });
+    const { data: fresh } = await supabase.from('redemptions').select('*');
+    if (fresh) setRedemptions(fresh.map(r => ({
+      id: r.id, childId: r.child_id, adultId: r.adult_id,
+      type: r.type, title: r.title, tokenCost: r.token_cost,
+      status: r.status, redemptionDetails: r.redemption_details,
+      redeemedAt: r.redeemed_at, deliveredAt: r.delivered_at,
+    })));
+    const { data: batches } = await supabase.from('token_batches').select('*');
+    if (batches) setTokenBatches(batches.map(b => ({
+      id: b.id, userId: b.user_id, amount: b.amount, remaining: b.remaining,
+      source: b.source, acquiredAt: b.acquired_at, expiresAt: b.expires_at,
+      fromChildTransfer: b.from_child_transfer,
+    })));
+    if (error || !data?.success) return { success: false, error: data?.error || 'Error al entregar' };
+    return { success: true, ...data };
   }, []);
+
+  const getRedemptionsForAdult = useCallback((adultId) => {
+    return redemptions.filter(r => r.adultId === adultId).sort((a, b) => new Date(b.redeemedAt) - new Date(a.redeemedAt));
+  }, [redemptions]);
+
+  const getRedemptionsForChild = useCallback((childId) => {
+    return redemptions.filter(r => r.childId === childId).sort((a, b) => new Date(b.redeemedAt) - new Date(a.redeemedAt));
+  }, [redemptions]);
+
+  const setScoreGoal = useCallback((monthKey, goal) => {
+    const userId = currentUser?.id;
+    if (!userId) return;
+    if (goal === null || goal === undefined) {
+      setScoreGoals(prev => { const next = { ...prev }; delete next[monthKey]; return next; });
+      supabase.from('score_goals').delete().eq('user_id', userId).eq('month_key', monthKey).then(({ error }) => error && console.log('SCORE_GOAL_DEL_ERR', error));
+    } else {
+      setScoreGoals(prev => ({ ...prev, [monthKey]: Number(goal) }));
+      supabase.from('score_goals').upsert({ user_id: userId, month_key: monthKey, goal: Number(goal) }, { onConflict: 'user_id,month_key' }).then(({ error }) => error && console.log('SCORE_GOAL_UPSERT_ERR', error));
+    }
+  }, [currentUser]);
 
   const getScoreGoal = useCallback((monthKey) => {
     return scoreGoals[monthKey] ?? null;
   }, [scoreGoals]);
+
+  const refreshData = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) loadProfiles(session);
+  }, []);
 
   return (
     <GlobalContext.Provider value={{
@@ -864,8 +957,9 @@ export function GlobalProvider({ children }) {
       LOYALTY_RATES, REDEEM_MEMBERSHIP_POINTS, REDEEM_TOKEN_POINTS, TOKEN_REDEEM_OPTIONS,
       surprises, createAndSendSurprise, getSurprisesForAdult, getSurprisesForChild, openSurprise, claimSurprise,
       prizes, createPrize, deletePrize, getAdultPrizes, incrementPrizeUsed, getPrizesForChild, redeemPrize,
+      redemptions, deliverRedemption, getRedemptionsForAdult, getRedemptionsForChild,
       todoLists, createList, deleteList, markListCompleted, addListItem, toggleListItem, deleteListItem, renameList,
-      scoreGoals, setScoreGoal, getScoreGoal,
+      scoreGoals, setScoreGoal, getScoreGoal, refreshData,
     }}>
       {children}
     </GlobalContext.Provider>

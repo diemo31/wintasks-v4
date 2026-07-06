@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useGlobal } from '../context/GlobalContext';
@@ -28,7 +28,10 @@ const SOURCE_LABELS = {
   purchase_p2: 'Pack 2000',
   purchase_p3: 'Pack 3000',
   task_reward: 'Recompensa tarea',
-  transfer: 'Recuperación',
+  transfer: 'Transferencia recibida',
+  canje: 'Recuperado de canje',
+  prize_fulfilled: 'Recuperado por entrega de premio',
+  surprise_fulfilled: 'Recuperado por entrega de sorpresa',
   redeem: 'Canje de puntos',
   expired_refund: 'Devolución tarea vencida',
   generic: 'Otros',
@@ -61,7 +64,7 @@ export default function MiCuentaTokensScreen({ navigation }) {
   const aprobadasTokens = aprobadas.reduce((s, t) => s + t.tokenReward, 0);
 
   const recuperadasTokens = monthBatches
-    .filter(b => b.source === 'transfer')
+    .filter(b => b.source === 'expired_refund' || b.source === 'canje')
     .reduce((s, b) => s + b.amount, 0);
 
   const asignadasTokens = monthTasks.reduce((s, t) => s + t.tokenReward, 0);
@@ -140,6 +143,11 @@ export default function MiCuentaTokensScreen({ navigation }) {
         }
       </View>
 
+      <TouchableOpacity style={styles.transferBtn} onPress={() => navigation.navigate('Transferir')}>
+        <Ionicons name="swap-horizontal" size={18} color="#FFF" />
+        <Text style={styles.transferBtnText}>Transferir tokens</Text>
+      </TouchableOpacity>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Movimientos de tokens — {MONTHS[now.getMonth()]}</Text>
         {monthBatches.length === 0 ? (
@@ -204,6 +212,8 @@ const styles = StyleSheet.create({
   taskMetaDot: { fontSize: 10, color: '#ccc' },
   taskTokenAmt: { fontSize: 11, fontWeight: '700', color: '#E88900' },
   taskExpiry: { fontSize: 10, color: '#C0693A', fontWeight: '500' },
+  transferBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#E88900', marginHorizontal: 20, paddingVertical: 12, borderRadius: 10, gap: 6 },
+  transferBtnText: { color: '#FFF', fontSize: 15, fontWeight: '700' },
   movementCard: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     backgroundColor: '#f8f9fa', borderRadius: 10, padding: 10, marginBottom: 6,

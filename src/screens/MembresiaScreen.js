@@ -19,8 +19,7 @@ const POLL_TIMEOUT = 300000;
 
 export default function MembresiaScreen({ navigation, route }) {
   const {
-    currentUser, requestMembership, markPaymentSent,
-    verifyMembership, getUserMembership,
+    currentUser, getUserMembership, refreshData,
   } = useGlobal();
 
   const [mepRate, setMepRate] = useState(null);
@@ -100,11 +99,8 @@ export default function MembresiaScreen({ navigation, route }) {
         if (res.ok && data.status === 'COMPLETED') {
           clearInterval(pollingRef.current);
           pollingRef.current = null;
+          await refreshData();
           setPayPalCaptured(data);
-          const amountArs = Math.round(plan.usd * (mepRate || 1));
-          requestMembership(currentUser.id, plan.key, plan.usd, amountArs, mepRate || 1);
-          markPaymentSent(currentUser.id);
-          verifyMembership(currentUser.id);
           Alert.alert('Pago exitoso', `Tu membresía ${plan.label} ya está activa.`);
           setPayPalOrderId(null);
           setWaitingPayPal(false);
@@ -131,7 +127,13 @@ export default function MembresiaScreen({ navigation, route }) {
       const res = await fetch('https://win-tasks.vercel.app/api/paypal/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: selectedPlan.usd, description: `Membresía WinTasks - ${selectedPlan.label}` }),
+        body: JSON.stringify({
+          amount: selectedPlan.usd,
+          userId: currentUser.id,
+          productType: 'membership',
+          productId: selectedPlan.key,
+          userEmail: currentUser.email || '',
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.approvalUrl) throw new Error(data.error || 'No se pudo crear la orden');

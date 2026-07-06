@@ -33,7 +33,7 @@ const POLL_INTERVAL = 5000;
 const POLL_TIMEOUT = 300000;
 
 export default function TokensScreen({ navigation }) {
-  const { currentUser, addTokens, getUserTokens, getPurchaseHistory } = useGlobal();
+  const { currentUser, getUserTokens, getPurchaseHistory, refreshData } = useGlobal();
   const myTokens = getUserTokens(currentUser?.id);
   const purchases = getPurchaseHistory(currentUser?.id);
 
@@ -87,7 +87,6 @@ export default function TokensScreen({ navigation }) {
 
   const startPolling = (orderId, pack) => {
     setWaitingPayPal(true);
-    pollingPackRef.current = pack;
     const startTime = Date.now();
     pollingRef.current = setInterval(async () => {
       try {
@@ -100,7 +99,7 @@ export default function TokensScreen({ navigation }) {
         if (res.ok && data.status === 'COMPLETED') {
           clearInterval(pollingRef.current);
           pollingRef.current = null;
-          addTokens(currentUser.id, pack.tokens, `purchase_${pack.id}`, pack.expiryMonths);
+          await refreshData();
           setPayPalOrderId(null);
           setWaitingPayPal(false);
           setSelectedPack(null);
@@ -127,7 +126,13 @@ export default function TokensScreen({ navigation }) {
       const res = await fetch('https://win-tasks.vercel.app/api/paypal/create-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: selectedPack.price, description: `Compra tokens - ${selectedPack.label}` }),
+        body: JSON.stringify({
+          amount: selectedPack.price,
+          userId: currentUser.id,
+          productType: 'tokens',
+          productId: selectedPack.id,
+          userEmail: currentUser.email || '',
+        }),
       });
       const data = await res.json();
       if (!res.ok || !data.approvalUrl) throw new Error(data.error || 'No se pudo crear la orden');

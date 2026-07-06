@@ -10,9 +10,9 @@ export default function PremiosMenorScreen({ navigation }) {
   const myTokens = getUserTokens(currentUser?.id);
   const [selectedPrize, setSelectedPrize] = useState(null);
 
-  const handleRedeem = () => {
+  const handleRedeem = async () => {
     if (!selectedPrize) return;
-    const result = redeemPrize(currentUser.id, selectedPrize.id);
+    const result = await redeemPrize(currentUser.id, selectedPrize.id);
     if (result.success) {
       Alert.alert('¡Canjeado!', `Canjeaste "${selectedPrize.title}" por ${selectedPrize.tokenCost} tokens.`, [
         { text: 'OK', onPress: () => setSelectedPrize(null) },

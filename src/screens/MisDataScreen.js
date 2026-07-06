@@ -5,19 +5,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme';
 import { useGlobal } from '../context/GlobalContext';
 
-function calculateAge(fechaNac) {
-  if (!fechaNac) return '';
-  const parts = fechaNac.split('/');
-  if (parts.length !== 3) return '';
-  const dob = new Date(parts[2], parts[1] - 1, parts[0]);
-  if (isNaN(dob.getTime())) return '';
-  const today = new Date();
-  let age = today.getFullYear() - dob.getFullYear();
-  const m = today.getMonth() - dob.getMonth();
-  if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) age--;
-  return `${age} años`;
-}
-
 function InfoRow({ label, value, iconName }) {
   return (
     <View style={styles.infoRow}>
@@ -61,7 +48,7 @@ export default function MisDataScreen({ navigation, route }) {
           <InfoRow label="Usuario" value={`@${u.alias || ''}`} iconName="at-outline" />
           <InfoRow label="Teléfono" value={u.phone || ''} iconName="call-outline" />
           <InfoRow label="Fecha de nacimiento" value={u.fechaNac || ''} iconName="calendar-outline" />
-          <InfoRow label="Edad" value={calculateAge(u.fechaNac)} iconName="hourglass-outline" />
+          <InfoRow label="Edad" value={u.age ? `${u.age} años` : ''} iconName="hourglass-outline" />
         </View>
       </ScrollView>
     </LinearGradient>
